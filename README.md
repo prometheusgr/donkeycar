@@ -81,3 +81,42 @@ V.start(rate_hz=10)
 
 See [home page](http://donkeycar.com), [docs](http://docs.donkeycar.com)
 or join the [Discord server](http://www.donkeycar.com/community.html) to learn more.
+
+## Deploying to a Raspberry Pi
+
+This repository includes a small helper script `scripts/deploy_pi.sh` to update code on a Raspberry Pi, create/activate the project's virtual environment, install Python requirements, and optionally restart a systemd service.
+
+New options were added to make Pi deployments simpler when native extensions need system headers (for example, when building the `python-prctl` wheel):
+
+- `--install-deps`: Install distro-appropriate system packages required to build native Python extensions. On Debian/Raspbian this will run `sudo apt update` and then `sudo apt install -y build-essential python3-dev libcap-dev`.
+- `--yes`: Run non-interactively and assume confirmation for package installation.
+- `--dry-run`: Show the package manager commands that would be executed and exit without making changes.
+
+Examples
+
+Preview what would be installed (no changes):
+
+```bash
+bash scripts/deploy_pi.sh --install-deps --dry-run
+```
+
+Install system packages interactively:
+
+```bash
+bash scripts/deploy_pi.sh --install-deps
+```
+
+Install system packages non-interactively (useful for automation/CI):
+
+```bash
+bash scripts/deploy_pi.sh --install-deps --yes
+```
+
+If you prefer to update a Pi manually, run these commands on the Pi to fix the `libcap`/build-headers error before running the deploy script:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential python3-dev libcap-dev
+```
+
+The script prints a warning if it cannot detect a supported package manager and will skip automatic installation in that case.
