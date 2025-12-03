@@ -27,7 +27,7 @@ def setup_controller(cfg: Any, vehicle: Any, use_joystick: bool = False) -> Opti
             LocalWebController,
             JoystickController,
         )
-    except Exception as exc:
+    except ImportError as exc:
         logger.debug("Controller parts not available: %s", exc)
         LocalWebController = JoystickController = object
 
@@ -44,7 +44,7 @@ def setup_controller(cfg: Any, vehicle: Any, use_joystick: bool = False) -> Opti
                 threaded=True,
             )
             return ctr
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError, TypeError) as exc:
             logger.debug("Joystick controller not available: %s", exc)
             ctr = None
 
@@ -61,7 +61,7 @@ def setup_controller(cfg: Any, vehicle: Any, use_joystick: bool = False) -> Opti
                 threaded=True,
             )
             return rc
-    except Exception as exc:
+    except (ImportError, RuntimeError, OSError, ValueError, TypeError) as exc:
         logger.debug("RC controller not available: %s", exc)
 
     # Otherwise try local web controller as the default
@@ -76,7 +76,7 @@ def setup_controller(cfg: Any, vehicle: Any, use_joystick: bool = False) -> Opti
             threaded=True,
         )
         return ctr
-    except Exception as exc:
+    except (RuntimeError, OSError, ValueError, TypeError) as exc:
         logger.debug("Local web controller not available: %s", exc)
 
     return None
