@@ -38,7 +38,7 @@ import tornado.gen
 import tornado.websocket
 from socket import gethostname
 
-from ... import utils
+from donkeycar import utils
 
 logger = logging.getLogger(__name__)
 
