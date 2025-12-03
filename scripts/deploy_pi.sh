@@ -11,12 +11,18 @@ IFS=$'\n\t'
 SERVICE_NAME="donkeycar.service"
 VENV_DIR=".venv"
 NO_RESTART=0
+INSTALL_DEPS=0
+ASSUME_YES=0
+DRY_RUN=0
 
 while [[ ${#} -gt 0 ]]; do
   case "$1" in
     --service) SERVICE_NAME="$2"; shift 2;;
     --no-restart) NO_RESTART=1; shift 1;;
     --venv) VENV_DIR="$2"; shift 2;;
+    --install-deps) INSTALL_DEPS=1; shift 1;;
+    --yes) ASSUME_YES=1; shift 1;;
+    --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) sed -n '1,120p' "$0"; exit 0;;
     *) shift 1;;
   esac
@@ -101,7 +107,75 @@ else
   fi
 fi
 
+# Install system dependencies when requested. This requires sudo.
+install_system_deps(){
+  info "Installing system build dependencies (requires sudo)..."
+  if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+  fi
+  # Build command strings for dry-run or execution
+  case "${ID:-}" in
+    debian|raspbian|ubuntu|linuxmint|pop)
+      PKG_UPDATE_CMD="sudo apt update"
+      PKG_INSTALL_CMD="sudo apt install -y build-essential python3-dev libcap-dev"
+      ;;
+    alpine)
+      PKG_UPDATE_CMD="sudo apk update"
+      PKG_INSTALL_CMD="sudo apk add --no-cache build-base python3-dev libcap-dev"
+      ;;
+    fedora|centos|rhel)
+      PKG_UPDATE_CMD="sudo dnf makecache"
+      PKG_INSTALL_CMD="sudo dnf install -y @development-tools python3-devel libcap-devel"
+      ;;
+    *)
+      warn "Unsupported or unknown distribution. Please install 'build-essential', 'python3-dev' and 'libcap-dev' manually."
+      return 0
+      ;;
+  esac
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    info "Dry-run: the following commands would be executed:"
+    echo "  $PKG_UPDATE_CMD"
+    echo "  $PKG_INSTALL_CMD"
+    return 0
+  fi
+
+  if [ "$ASSUME_YES" -ne 1 ]; then
+    read -r -p "Install system packages required to build native extensions? [y/N] " resp
+    case "$resp" in
+      [yY]|[yY][eE][sS]) ;;
+      *) warn "Skipping system package installation."; return 0;;
+    esac
+  fi
+
+  # Execute commands
+  case "${ID:-}" in
+    debian|raspbian|ubuntu|linuxmint|pop)
+      info "Using apt to install packages: build-essential python3-dev libcap-dev"
+      $PKG_UPDATE_CMD
+      $PKG_INSTALL_CMD
+      ;;
+    alpine)
+      info "Using apk to install packages: build-base python3-dev libcap-dev"
+      $PKG_UPDATE_CMD
+      $PKG_INSTALL_CMD
+      ;;
+    fedora|centos|rhel)
+      info "Using dnf to install packages: development tools, python3-devel, libcap-devel"
+      $PKG_UPDATE_CMD
+      $PKG_INSTALL_CMD
+      ;;
+    *)
+      warn "Unsupported or unknown distribution. Please install 'build-essential', 'python3-dev' and 'libcap-dev' manually."
+      ;;
+  esac
+}
+
 # Virtualenv setup and dependency install
+if [ "$INSTALL_DEPS" -eq 1 ]; then
+  install_system_deps
+fi
 if [ -d "$VENV_DIR" ]; then
   info "Activating existing venv: $VENV_DIR"
 else

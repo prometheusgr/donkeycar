@@ -142,6 +142,7 @@ class LocalWebController(tornado.web.Application):
         handlers = [
             (r"/", RedirectHandler, dict(url="/drive")),
             (r"/drive", DriveAPI),
+            (r"/api/config", ConfigAPI),
             (r"/wsDrive", WebSocketDriveAPI),
             (r"/wsCalibrate", WebSocketCalibrateAPI),
             (r"/calibrate", CalibrateHandler),
@@ -270,6 +271,44 @@ class CalibrateHandler(RequestHandler):
 
     async def get(self):
         await self.render("templates/calibrate.html")
+
+
+class ConfigAPI(RequestHandler):
+    """Return a small JSON snapshot of runtime calibration values."""
+
+    def get(self):
+        app = self.application
+        data = {
+            "drive_train_type": getattr(app, "drive_train_type", None),
+        }
+
+        # PWM_STEERING_THROTTLE style
+        try:
+            if hasattr(app, "drive_train") and app.drive_train:
+                steering = app.drive_train.get("steering") if isinstance(
+                    app.drive_train, dict) else getattr(app.drive_train, "steering", None)
+                throttle = app.drive_train.get("throttle") if isinstance(
+                    app.drive_train, dict) else getattr(app.drive_train, "throttle", None)
+
+                if steering is not None:
+                    # steering may expose left_pulse/right_pulse or STEERING_MID depending on driver
+                    left = getattr(steering, "left_pulse", None)
+                    right = getattr(steering, "right_pulse", None)
+                    data.update({"STEERING_LEFT_PWM": left,
+                                "STEERING_RIGHT_PWM": right})
+
+                if throttle is not None:
+                    data.update({
+                        "THROTTLE_FORWARD_PWM": getattr(throttle, "max_pulse", None),
+                        "THROTTLE_STOPPED_PWM": getattr(throttle, "zero_pulse", None),
+                        "THROTTLE_REVERSE_PWM": getattr(throttle, "min_pulse", None),
+                    })
+        except Exception:
+            # best-effort; don't fail
+            pass
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(data))
 
 
 def latch_buttons(buttons, pushes):
