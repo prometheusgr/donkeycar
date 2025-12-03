@@ -1,0 +1,23 @@
+# requirements for Raspberry Pi / Pi-specific extras
+# Generated from `setup.cfg` extras_require[pi]
+
+picamera2
+Adafruit_PCA9685
+adafruit-circuitpython-ssd1306
+adafruit-circuitpython-rplidar
+RPi.GPIO
+flatbuffers==24.3.*
+tensorflow-aarch64==2.15.*
+opencv-contrib-python
+matplotlib
+kivy
+kivy-garden.matplotlib
+pandas
+plotly
+albumentations
+
+# Additional detected/optional packages used in the repo (suggested for Pi installs)
+pigpio
+rplidar
+PyLidar3
+pyrplidar

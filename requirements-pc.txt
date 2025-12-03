@@ -1,0 +1,10 @@
+# requirements for PC extras
+# Generated from `setup.cfg` extras_require[pc]
+
+tensorflow==2.15.*
+matplotlib
+kivy
+kivy-garden.matplotlib
+pandas
+plotly
+albumentations

@@ -1,0 +1,9 @@
+# requirements for Torch / GPU extras
+# Generated from `setup.cfg` extras_require[torch]
+
+torch==2.1.*
+pytorch-lightning
+torchvision
+torchaudio
+fastai
+torchmetrics
