@@ -131,6 +131,34 @@ bash scripts/pi_start_and_calibrate.sh --service donkeycar.service
 - Calibrate with wheels raised or the car suspended off the ground where possible (or with wheels lightly touching) to avoid uncontrolled motion.
 - When applying throttle tests use small throttle durations and stand clear.
 
+8. Service missing? Proactive fallback
+
+- If `sudo systemctl restart donkeycar.service` reports `Unit ... not found`, the helper script can optionally try to start the car process directly (useful on systems where you haven't installed a systemd unit).
+
+  - Start the service or attempt a direct start with the helper (interactive):
+
+```bash
+# Try restarting systemd (default behavior)
+bash scripts/pi_start_and_calibrate.sh --service donkeycar.service
+
+# If the unit is missing and you want the script to attempt to start the car process directly,
+# re-run with --start and answer the confirmation prompt:
+bash scripts/pi_start_and_calibrate.sh --start
+
+# To auto-accept the prompt and start the car in the background (logs -> logs/donkeycar.log):
+bash scripts/pi_start_and_calibrate.sh --start --yes
+
+# To start the car in the foreground (useful for debugging):
+bash scripts/pi_start_and_calibrate.sh --start --foreground
+```
+
+- Behavior details:
+  - With `--start` the script activates the repo `.venv` (if present) and runs `python3 mycar/manage.py drive`.
+  - By default it starts the car in the background using `nohup` and writes logs to `logs/donkeycar.log` and the PID to `.donkeycar.pid` in the repo root.
+  - Use `--foreground` to run in the foreground (no nohup), or `--yes` to skip confirmation prompts.
+
+If you'd like I can add a `systemd` unit template under `scripts/` to make installing the service easier — want me to add that?
+
 If you want, I can also:
 
 - Add a small utility that will write measured values directly into `mycar/myconfig.py` (optional and automated), or
