@@ -7,7 +7,6 @@ Created on Wed Sep 13 21:27:44 2017
 import os
 import types
 import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +39,18 @@ class Config:
         The configuration file is executed in a fresh module namespace and
         any UPPERCASE attributes are copied into this Config instance.
         """
-        d = types.ModuleType('config')
-        d.__file__ = filename
         try:
-            with open(filename, 'r', encoding='utf-8') as config_file:
-                config_content = config_file.read()
-                # Execute the python config file in the module namespace
-                exec(compile(config_content, filename, 'exec'), d.__dict__)
-        except IOError as e:
-            error_message = f'Unable to load configuration file: {e.strerror}'
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('config', filename)
+            module = importlib.util.module_from_spec(spec)
+            if spec is None or spec.loader is None:
+                raise IOError(f'Unable to load configuration file: {filename}')
+            spec.loader.exec_module(module)
+            d = module
+            d.__file__ = filename
+        except Exception as e:
+            err_msg = getattr(e, 'strerror', None) or str(e)
+            error_message = f'Unable to load configuration file: {err_msg}'
             raise IOError(error_message) from e
         self.from_object(d)
         return True
@@ -64,10 +66,9 @@ class Config:
         keys = keys or []
         msg = 'Overwriting config with: '
         for k, v in d.items():
-            if k.isupper():
-                if k in keys or not keys:
-                    setattr(self, k, v)
-                    msg += f'{k}:{v}, '
+            if k.isupper() and (k in keys or not keys):
+                setattr(self, k, v)
+                msg += f'{k}:{v}, '
         logger.info(msg)
 
     def __str__(self):
