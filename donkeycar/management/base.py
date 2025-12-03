@@ -12,27 +12,36 @@ except ImportError:
     # Lightweight fallback when `progress` package is not installed (tests/CI).
     class IncrementalBar:  # pragma: no cover - fallback for tests
         def __init__(self, *args, **kwargs):
+            # This method is intentionally left empty as it serves as a placeholder
+            # for the `IncrementalBar` class when the `progress` package is not installed.
             pass
 
         def next(self):
+            '''intentionally left blank'''
             return None
 
         def finish(self):
+            '''intentionally left blank'''
             return None
 
         def start(self):
+            '''intentionally left blank'''
             return None
 
         def update(self, *args, **kwargs):
+            '''intentionally left blank'''
             return None
 
         def goto(self, *args, **kwargs):
+            '''intentionally left blank'''
             return None
 
         def __enter__(self):
+            '''intentionally left blank'''
             return self
 
         def __exit__(self, exc_type, exc, tb):
+            '''intentionally left blank'''
             return None
 import donkeycar as dk
 from donkeycar.management.joystick_creator import CreateJoystick
@@ -41,11 +50,15 @@ from donkeycar.utils import normalize_image, load_image, math
 
 PACKAGE_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 TEMPLATES_PATH = os.path.join(PACKAGE_PATH, 'templates')
-HELP_CONFIG = 'location of config file to use. default: ./config.py'
+MYCONFIG = 'myconfig.py'
+CONFIG_DEFAULT = './config.py'
+HELP_CONFIG = f'location of config file to use. default: ./{MYCONFIG}'
+USAGE = '%(prog)s [options]'
 logger = logging.getLogger(__name__)
 
 
 def make_dir(path):
+    ''' make directory if it does not exist'''
     real_path = os.path.expanduser(path)
     print('making dir ', real_path)
     if not os.path.exists(real_path):
@@ -53,7 +66,7 @@ def make_dir(path):
     return real_path
 
 
-def load_config(config_path, myconfig='myconfig.py'):
+def load_config(config_path, myconfig=MYCONFIG):
     """
     load a config from the given path
     """
@@ -65,22 +78,32 @@ def load_config(config_path, myconfig='myconfig.py'):
 
     try:
         cfg = dk.load_config(conf, myconfig)
-    except Exception as e:
+    except (ImportError, SyntaxError) as e:
         logger.error("Exception %s while loading config from %s", e, conf)
         return None
 
     return cfg
 
 
-class BaseCommand(object):
-    pass
+class BaseCommand:
+    ''' Base class for management commands.'''
+
+    def parse_args(self, args):
+        """Parse command line arguments."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def run(self, args):
+        """Run the command with the given arguments."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
 
 class CreateCar(BaseCommand):
+    ''' Create a donkey car folder structure.'''
 
     def parse_args(self, args):
+        ''' Parse the command line arguments.'''
         parser = argparse.ArgumentParser(
-            prog='createcar', usage='%(prog)s [options]')
+            prog='createcar', usage=USAGE)
         parser.add_argument('--path', default=None,
                             help='path where to create car folder')
         parser.add_argument('--template', default=None,
@@ -91,86 +114,113 @@ class CreateCar(BaseCommand):
         return parsed_args
 
     def run(self, args):
+        ''' Run the command with the given args.'''
         args = self.parse_args(args)
         self.create_car(path=args.path, template=args.template,
                         overwrite=args.overwrite)
 
     def create_car(self, path, template='complete', overwrite=False):
         """
-        This script sets up the folder structure for donkey to work.
-        It must run without donkey installed so that people installing with
-        docker can build the folder structure for docker to mount to.
+        Sets up the folder structure for donkey to work. Refactored to
+        delegate smaller tasks to helper methods to reduce complexity.
         """
-
-        # these are neeeded incase None is passed as path
+        # defaults
         path = path or '~/mycar'
         template = template or 'complete'
         print(f"Creating car folder: {path}")
         path = make_dir(path)
 
-        print("Creating data & model folders.")
-        folders = ['models', 'data', 'logs']
-        folder_paths = [os.path.join(path, f) for f in folders]
-        for fp in folder_paths:
-            make_dir(fp)
+        self._ensure_standard_folders(path)
 
-        # add car application and config files if they don't exist
-        app_template_path = os.path.join(TEMPLATES_PATH, template+'.py')
+        # template / file names
+        app_template_path = os.path.join(TEMPLATES_PATH, template + '.py')
         config_template_path = os.path.join(
             TEMPLATES_PATH, 'cfg_' + template + '.py')
-        myconfig_template_path = os.path.join(TEMPLATES_PATH, 'myconfig.py')
+        myconfig_template_path = os.path.join(TEMPLATES_PATH, MYCONFIG)
         train_template_path = os.path.join(TEMPLATES_PATH, 'train.py')
         calibrate_template_path = os.path.join(TEMPLATES_PATH, 'calibrate.py')
+
         car_app_path = os.path.join(path, 'manage.py')
         car_config_path = os.path.join(path, 'config.py')
-        mycar_config_path = os.path.join(path, 'myconfig.py')
+        mycar_config_path = os.path.join(path, MYCONFIG)
         train_app_path = os.path.join(path, 'train.py')
         calibrate_app_path = os.path.join(path, 'calibrate.py')
 
-        if os.path.exists(car_app_path) and not overwrite:
-            print('Car app already exists. Delete it and rerun createcar to replace.')
-        else:
-            print(f"Copying car application template: {template}")
-            shutil.copyfile(app_template_path, car_app_path)
-            os.chmod(car_app_path, stat.S_IRWXU)
+        # copy files (each helper handles existence/overwrite)
+        self._copy_template(app_template_path, car_app_path, overwrite, make_executable=True,
+                            exist_message='Car app already exists. Delete it and rerun createcar to replace.',
+                            copy_message=f"Copying car application template: {template}")
 
-        if os.path.exists(car_config_path) and not overwrite:
-            print('Car config already exists. Delete it and rerun createcar to replace.')
-        else:
-            print("Copying car config defaults. Adjust these before starting your car.")
-            shutil.copyfile(config_template_path, car_config_path)
+        self._copy_template(config_template_path, car_config_path, overwrite,
+                            exist_message='Car config already exists. Delete it and rerun createcar to replace.',
+                            copy_message="Copying car config defaults. Adjust these before starting your car.")
 
-        if os.path.exists(train_app_path) and not overwrite:
-            print('Train already exists. Delete it and rerun createcar to replace.')
-        else:
-            print("Copying train script. Adjust these before starting your car.")
-            shutil.copyfile(train_template_path, train_app_path)
-            os.chmod(train_app_path, stat.S_IRWXU)
+        self._copy_template(train_template_path, train_app_path, overwrite, make_executable=True,
+                            exist_message='Train already exists. Delete it and rerun createcar to replace.',
+                            copy_message="Copying train script. Adjust these before starting your car.")
 
-        if os.path.exists(calibrate_app_path) and not overwrite:
-            print('Calibrate already exists. Delete it and rerun createcar to replace.')
-        else:
-            print("Copying calibrate script. Adjust these before starting your car.")
-            shutil.copyfile(calibrate_template_path, calibrate_app_path)
-            os.chmod(calibrate_app_path, stat.S_IRWXU)
+        self._copy_template(calibrate_template_path, calibrate_app_path, overwrite, make_executable=True,
+                            exist_message='Calibrate already exists. Delete it and rerun createcar to replace.',
+                            copy_message="Copying calibrate script. Adjust these before starting your car.")
 
         if not os.path.exists(mycar_config_path):
-            print("Copying my car config overrides")
-            shutil.copyfile(myconfig_template_path, mycar_config_path)
-            # now copy file contents from config to myconfig, with all lines
-            # commented out.
-            cfg = open(car_config_path, "rt")
-            mcfg = open(mycar_config_path, "at")
-            copy = False
-            for line in cfg:
-                if "import os" in line:
-                    copy = True
-                if copy:
-                    mcfg.write("# " + line)
-            cfg.close()
-            mcfg.close()
+            self._create_myconfig_from_config(
+                car_config_path, myconfig_template_path, mycar_config_path)
 
         print("Donkey setup complete.")
+
+    def _ensure_standard_folders(self, path):
+        """Create the standard models/data/logs folders inside path."""
+        print("Creating data & model folders.")
+        folders = ['models', 'data', 'logs']
+        for f in folders:
+            make_dir(os.path.join(path, f))
+
+    def _copy_template(self, src, dst, overwrite, make_executable=False,
+                       exist_message=None, copy_message=None):
+        """
+        Copy a template file from src to dst, respecting overwrite flag.
+        Optionally make the destination executable for the current user.
+        """
+        if os.path.exists(dst) and not overwrite:
+            if exist_message:
+                print(exist_message)
+            return
+
+        if copy_message:
+            print(copy_message)
+        try:
+            shutil.copyfile(src, dst)
+            if make_executable:
+                os.chmod(dst, stat.S_IRWXU)
+        except Exception as e:
+            # Keep behavior simple: report failure but don't crash
+            print(f"Failed to copy {src} to {dst}: {e}")
+
+    def _create_myconfig_from_config(self, car_config_path, myconfig_template_path, mycar_config_path):
+        """
+        Copy the myconfig template and then append commented lines from
+        the generated config.py so users can easily enable overrides.
+        """
+        print("Copying my car config overrides")
+        try:
+            shutil.copyfile(myconfig_template_path, mycar_config_path)
+        except Exception as e:
+            print(f"Failed to copy myconfig template: {e}")
+            return
+
+        # Append commented config contents from config.py starting at 'import os'
+        try:
+            with open(car_config_path, "r", encoding="utf-8") as cfg, \
+                    open(mycar_config_path, "a", encoding="utf-8") as mcfg:
+                copy = False
+                for line in cfg:
+                    if "import os" in line:
+                        copy = True
+                    if copy:
+                        mcfg.write("# " + line)
+        except Exception as e:
+            print(f"Failed to append config contents to myconfig: {e}")
 
 
 class UpdateCar(BaseCommand):
@@ -179,14 +229,16 @@ class UpdateCar(BaseCommand):
     '''
 
     def parse_args(self, args):
+        ''' Parse the command line arguments.'''
         parser = argparse.ArgumentParser(
-            prog='update', usage='%(prog)s [options]')
+            prog='update', usage=USAGE)
         parser.add_argument('--template', default=None,
                             help='name of car template to use')
         parsed_args = parser.parse_args(args)
         return parsed_args
 
     def run(self, args):
+        ''' Run the command with the given args.'''
         args = self.parse_args(args)
         cc = CreateCar()
         cc.create_car(path=".", overwrite=True, template=args.template)
@@ -194,9 +246,11 @@ class UpdateCar(BaseCommand):
 
 class FindCar(BaseCommand):
     def parse_args(self, args):
+        ''' Parse the command line arguments.'''
         pass
 
     def run(self, args):
+        ''' Run the command with the given args.'''
         print('Looking up your computer IP address...')
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -207,18 +261,19 @@ class FindCar(BaseCommand):
         print("Finding your car's IP address...")
         cmd = "sudo nmap -sP " + ip + \
             "/24 | awk '/^Nmap/{ip=$NF}/B8:27:EB/{print ip}'"
-        cmdRPi4 = "sudo nmap -sP " + ip + \
+        cmd_rpi4 = "sudo nmap -sP " + ip + \
             "/24 | awk '/^Nmap/{ip=$NF}/DC:A6:32/{print ip}'"
         print("Your car's ip address is:")
         os.system(cmd)
-        os.system(cmdRPi4)
+        os.system(cmd_rpi4)
 
 
 class CalibrateCar(BaseCommand):
+    ''' Calibrate the PWM settings for your car.'''
 
     def parse_args(self, args):
         parser = argparse.ArgumentParser(
-            prog='calibrate', usage='%(prog)s [options]')
+            prog='calibrate', usage=USAGE)
         parser.add_argument(
             '--pwm-pin',
             help="The PwmPin specifier of pin to calibrate, like 'RPI_GPIO.BOARD.33' or 'PCA9685.1:40.13'")
@@ -246,23 +301,43 @@ class CalibrateCar(BaseCommand):
     def run(self, args):
         args = self.parse_args(args)
 
-        # ensure controller variables are defined for linters/static analyzers
-        arduino_controller = None
-        c = None
+        apply_pwm, input_prompt = self._setup_controller(args)
 
+        while True:
+            try:
+                val = input(input_prompt)
+                if val.lower() == 'q':
+                    break
+                pmw = int(val)
+                apply_pwm(pmw)
+            except KeyboardInterrupt:
+                print("\nKeyboardInterrupt received, exit.")
+                break
+            except (ValueError, TypeError) as ex:
+                print(f"Oops, {ex}")
+
+    def _setup_controller(self, args):
+        """
+        Initialize the appropriate controller and return an apply_pwm callable
+        and the input prompt string.
+        """
         if args.arduino:
             from donkeycar.parts.actuator import ArduinoFirmata
 
             channel = int(args.channel)
             arduino_controller = ArduinoFirmata(servo_pin=channel)
-            print('init Arduino PWM on pin %d' % (channel))
+            print(f'init Arduino PWM on pin {channel}')
             input_prompt = "Enter a PWM setting to test ('q' for quit) (0-180): "
 
-        elif args.pwm_pin is not None:
+            def apply__arduino_pwm(pmw):
+                arduino_controller.set_pulse(channel, pmw)
+
+            return apply__arduino_pwm, input_prompt
+
+        if args.pwm_pin is not None:
             from donkeycar.parts.actuator import PulseController
             from donkeycar.parts import pins
 
-            pwm_pin = None
             try:
                 pwm_pin = pins.pwm_pin_by_id(args.pwm_pin)
             except ValueError as e:
@@ -276,41 +351,32 @@ class CalibrateCar(BaseCommand):
             input_prompt = "Enter a PWM setting to test ('q' for quit) (0-1500): "
             print()
 
-        else:
-            from donkeycar.parts.actuator import PCA9685
-            from donkeycar.parts.sombrero import Sombrero
+            def apply_pin_pwm(pmw):
+                c.run(pmw)
 
-            Sombrero()  # setup pins for Sombrero hat
+            return apply_pin_pwm, input_prompt
 
-            channel = int(args.channel)
-            busnum = None
-            if args.bus:
-                busnum = int(args.bus)
-            address = int(args.address, 16)
-            print('init PCA9685 on channel %d address %s bus %s' %
-                  (channel, str(hex(address)), str(busnum)))
-            freq = int(args.pwmFreq)
-            print(f"Using PWM freq: {freq}")
-            c = PCA9685(channel, address=address,
-                        busnum=busnum, frequency=freq)
-            input_prompt = "Enter a PWM setting to test ('q' for quit) (0-1500): "
-            print()
+        # default to PCA9685 path
+        from donkeycar.parts.actuator import PCA9685
+        from donkeycar.parts.sombrero import Sombrero
 
-        while True:
-            try:
-                val = input(input_prompt)
-                if val == 'q' or val == 'Q':
-                    break
-                pmw = int(val)
-                if args.arduino == True:
-                    arduino_controller.set_pulse(channel, pmw)
-                else:
-                    c.run(pmw)
-            except KeyboardInterrupt:
-                print("\nKeyboardInterrupt received, exit.")
-                break
-            except Exception as ex:
-                print(f"Oops, {ex}")
+        Sombrero()  # setup pins for Sombrero hat
+
+        channel = int(args.channel)
+        busnum = int(args.bus) if args.bus else None
+        address = int(args.address, 16)
+        print(
+            f'init PCA9685 on channel {channel} address {hex(address)} bus {busnum}')
+        freq = int(args.pwmFreq)
+        print(f"Using PWM freq: {freq}")
+        c = PCA9685(channel, address=address, busnum=busnum, frequency=freq)
+        input_prompt = "Enter a PWM setting to test ('q' for quit) (0-1500): "
+        print()
+
+        def apply_pwm(pmw):
+            c.run(pmw)
+
+        return apply_pwm, input_prompt
 
 
 class MakeMovieShell(BaseCommand):
@@ -323,14 +389,14 @@ class MakeMovieShell(BaseCommand):
         self.deg_to_rad = math.pi / 180.0
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='makemovie')
+        parser = argparse.ArgumentParser(prog='makemovie', usage=USAGE)
         parser.add_argument('--tub', help='The tub to make movie from')
         parser.add_argument(
             '--out',
             default='tub_movie.mp4',
             help='The movie filename to create. default: tub_movie.mp4')
         parser.add_argument(
-            '--config', default='./config.py', help=HELP_CONFIG)
+            '--config', default=CONFIG_DEFAULT, help=HELP_CONFIG)
         parser.add_argument('--model', default=None,
                             help='the model to use to show control outputs')
         parser.add_argument('--type', default=None,
@@ -367,8 +433,7 @@ class ShowHistogram(BaseCommand):
 
     def parse_args(self, args):
         ''' Parse the command line arguments.'''
-        parser = argparse.ArgumentParser(prog='tubhist',
-                                         usage='%(prog)s [options]')
+        parser = argparse.ArgumentParser(prog='tubhist', usage=USAGE)
         parser.add_argument('--tub', nargs='+', help='paths to tubs')
         parser.add_argument('--record', default=None,
                             help='name of record to create histogram')
@@ -413,8 +478,8 @@ class ShowHistogram(BaseCommand):
                     filename = f"{output}_hist.png"
             plt.savefig(filename)
             logger.info('saving image to: %s', filename)
-        except Exception as e:
-            logger.error(str(e))
+        except (OSError, RuntimeError, ValueError) as e:
+            logger.error("Failed to save histogram image: %s", e)
         plt.show()
 
     def run(self, args):
@@ -488,11 +553,11 @@ class ShowCnnActivations(BaseCommand):
 
     def parse_args(self, args):
         parser = argparse.ArgumentParser(
-            prog='cnnactivations', usage='%(prog)s [options]')
+            prog='cnnactivations', usage=USAGE)
         parser.add_argument('--image', help='path to image')
         parser.add_argument('--model', default=None, help='path to model')
         parser.add_argument(
-            '--config', default='./config.py', help=HELP_CONFIG)
+            '--config', default=CONFIG_DEFAULT, help=HELP_CONFIG)
 
         parsed_args = parser.parse_args(args)
         return parsed_args
@@ -534,10 +599,9 @@ class ShowPredictionPlots(BaseCommand):
         records = dataset.get_records()[:limit]
         bar = IncrementalBar('Inferencing', max=len(records))
 
-        output_names = list(model.output_shapes()[1].keys())
         for tub_record in records:
             input_dict = model.x_transform(
-                tub_record, lambda x: normalize_image(x))
+                tub_record, normalize_image)
             pilot_angle, pilot_throttle = \
                 model.inference_from_dict(input_dict)
             user_angle = tub_record.underlying['user/angle']
@@ -567,13 +631,20 @@ class ShowPredictionPlots(BaseCommand):
         ax1.legend(loc=4)
         ax2.legend(loc=4)
         plt.savefig(model_path + '_pred.png')
+        # Ensure the figure is closed and file handles are released so the
+        # subprocess can exit reliably and the file is visible to callers.
+        try:
+            plt.close(fig)
+        except (RuntimeError, AttributeError, ValueError) as e:
+            # If closing the figure fails for any reason, log a warning and continue.
+            logger.warning("Failed closing matplotlib figure: %s", e)
         logger.info('Saving tubplot at %s_pred.png', model_path)
         if not noshow:
             plt.show()
 
     def parse_args(self, args):
         parser = argparse.ArgumentParser(
-            prog='tubplot', usage='%(prog)s [options]')
+            prog='tubplot', usage=USAGE)
         parser.add_argument('--tub', nargs='+',
                             help='The tub to make plot from')
         parser.add_argument('--model', default=None,
@@ -584,7 +655,7 @@ class ShowPredictionPlots(BaseCommand):
         parser.add_argument('--noshow', default=False, action="store_true",
                             help='if plot is shown in window')
         parser.add_argument(
-            '--config', default='./config.py', help=HELP_CONFIG)
+            '--config', default=CONFIG_DEFAULT, help=HELP_CONFIG)
 
         parsed_args = parser.parse_args(args)
         return parsed_args
@@ -603,15 +674,14 @@ class Train(BaseCommand):
         HELP_FRAMEWORK = 'the AI framework to use (tensorflow|pytorch). ' \
                          'Defaults to config.DEFAULT_AI_FRAMEWORK'
         parser = argparse.ArgumentParser(
-            prog='train', usage='%(prog)s [options]')
+            prog='train', usage=USAGE)
         parser.add_argument('--tub', nargs='+', help='tub data for training')
         parser.add_argument('--model', default=None, help='output model name')
         parser.add_argument('--type', default=None, help='model type')
         parser.add_argument(
-            '--config', default='./config.py', help=HELP_CONFIG)
-        parser.add_argument('--myconfig', default='./myconfig.py',
-                            help='file name of myconfig file, defaults to '
-                                 'myconfig.py')
+            '--config', default=CONFIG_DEFAULT, help=HELP_CONFIG)
+        parser.add_argument('--myconfig', default=f'./{MYCONFIG}',
+                            help=f'file name of {MYCONFIG} file, defaults to {MYCONFIG}')
         parser.add_argument('--framework',
                             choices=['tensorflow', 'pytorch', None],
                             required=False,
@@ -649,10 +719,9 @@ class Train(BaseCommand):
 class ModelDatabase(BaseCommand):
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='models',
-                                         usage='%(prog)s [options]')
+        parser = argparse.ArgumentParser(prog='models', usage=USAGE)
         parser.add_argument(
-            '--config', default='./config.py', help=HELP_CONFIG)
+            '--config', default=CONFIG_DEFAULT, help=HELP_CONFIG)
         parser.add_argument('--group', action="store_true",
                             default=False,
                             help='group tubs and plot separately')
@@ -670,7 +739,10 @@ class ModelDatabase(BaseCommand):
 
 
 class Gui(BaseCommand):
+    ''' Launch the Donkey Car GUI.'''
+
     def run(self, args):
+        ''' Run the command with the given args.'''
         from donkeycar.management.ui.ui import main
         main()
 
