@@ -4,6 +4,7 @@ Docstring for donkeycar.
 import os
 import sys
 import importlib
+from typing import TYPE_CHECKING
 """Donkeycar package.
 
 Keep this module lightweight: avoid heavy imports or printing at
@@ -13,6 +14,11 @@ without side effects.
 
 __version__ = "5.2.dev5"
 __all__ = ["Vehicle", "load_config", "Config"]
+
+if TYPE_CHECKING:
+    # Expose names to type checkers and linters without importing heavy modules.
+    from .vehicle import Vehicle  # noqa: F401
+    from .config import load_config, Config  # noqa: F401
 
 
 def __getattr__(name: str):

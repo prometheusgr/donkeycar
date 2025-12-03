@@ -8,7 +8,7 @@ import logging
 
 try:
     from progress.bar import IncrementalBar
-except Exception:
+except ImportError:
     # Lightweight fallback when `progress` package is not installed (tests/CI).
     class IncrementalBar:  # pragma: no cover - fallback for tests
         def __init__(self, *args, **kwargs):
@@ -59,14 +59,14 @@ def load_config(config_path, myconfig='myconfig.py'):
     """
     conf = os.path.expanduser(config_path)
     if not os.path.exists(conf):
-        logger.error(f"No config file at location: {conf}. Add --config to "
-                     f"specify location or run from dir containing config.py.")
+        logger.error("No config file at location: %s. Add --config to "
+                     "specify location or run from dir containing config.py.", conf)
         return None
 
     try:
         cfg = dk.load_config(conf, myconfig)
     except Exception as e:
-        logger.error(f"Exception {e} while loading config from {conf}")
+        logger.error("Exception %s while loading config from %s", e, conf)
         return None
 
     return cfg
@@ -385,7 +385,7 @@ class ShowHistogram(BaseCommand):
         try:
             import pandas as pd
             from matplotlib import pyplot as plt
-        except Exception:
+        except ImportError:
             logger.error(
                 "matplotlib is not available; install matplotlib to use the 'tubhist' command.")
             return
@@ -427,6 +427,12 @@ class ShowHistogram(BaseCommand):
 class ShowCnnActivations(BaseCommand):
 
     def __init__(self):
+        import matplotlib
+        try:
+            matplotlib.use('Agg')
+        except Exception:
+            # If backend can't be set, continue and let matplotlib pick one
+            pass
         import matplotlib.pyplot as plt
         self.plt = plt
 
@@ -561,7 +567,7 @@ class ShowPredictionPlots(BaseCommand):
         ax1.legend(loc=4)
         ax2.legend(loc=4)
         plt.savefig(model_path + '_pred.png')
-        logger.info(f'Saving tubplot at {model_path}_pred.png')
+        logger.info('Saving tubplot at %s_pred.png', model_path)
         if not noshow:
             plt.show()
 
@@ -636,8 +642,8 @@ class Train(BaseCommand):
             train(cfg, args.tub, args.model, args.type,
                   checkpoint_path=args.checkpoint)
         else:
-            logger.error(f"Unrecognized framework: {framework}. Please specify "
-                         f"one of 'tensorflow' or 'pytorch'")
+            logger.error("Unrecognized framework: %s. Please specify "
+                         "one of 'tensorflow' or 'pytorch'", framework)
 
 
 class ModelDatabase(BaseCommand):
