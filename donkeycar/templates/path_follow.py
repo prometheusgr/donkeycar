@@ -71,6 +71,7 @@ from donkeycar.parts.explode import ExplodeDict
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
 def drive(cfg, use_joystick=False, camera_type='single'):
     '''
     Construct a working robotic vehicle from many parts.
@@ -84,14 +85,14 @@ def drive(cfg, use_joystick=False, camera_type='single'):
 
     is_differential_drive = cfg.DRIVE_TRAIN_TYPE.startswith("DC_TWO_WHEEL")
 
-    #Initialize car
-    V = dk.vehicle.Vehicle()
+    # Initialize car
+    V = dk.Vehicle()
 
     if cfg.HAVE_SOMBRERO:
         from donkeycar.utils import Sombrero
         s = Sombrero()
-   
-    #Initialize logging before anything else to allow console logging
+
+    # Initialize logging before anything else to allow console logging
     if cfg.HAVE_CONSOLE_LOGGING:
         logger.setLevel(logging.getLevelName(cfg.LOGGING_LEVEL))
         ch = logging.StreamHandler()
@@ -124,7 +125,7 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         # we give the T265 no calib to indicated we don't have odom
         cfg.WHEEL_ODOM_CALIB = None
 
-        #This dummy part to satisfy input needs of RS_T265 part.
+        # This dummy part to satisfy input needs of RS_T265 part.
         class NoOdom():
             def run(self):
                 return 0.0
@@ -143,8 +144,10 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         # NOTE: image output on the T265 is broken in the python API and
         #       will never get fixed, so not image output from T265
         #
-        rs = RS_T265(image_output=False, calib_filename=cfg.WHEEL_ODOM_CALIB, device_id=cfg.REALSENSE_T265_ID)
-        V.add(rs, inputs=['enc/vel_m_s'], outputs=['rs/pos', 'rs/vel', 'rs/acc'], threaded=True)
+        rs = RS_T265(image_output=False, calib_filename=cfg.WHEEL_ODOM_CALIB,
+                     device_id=cfg.REALSENSE_T265_ID)
+        V.add(rs, inputs=['enc/vel_m_s'],
+              outputs=['rs/pos', 'rs/vel', 'rs/acc'], threaded=True)
 
         #
         # Pull out the realsense T265 position stream, output 2d coordinates we can use to map.
@@ -153,7 +156,7 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         #
         class PosStream:
             def run(self, pos):
-                #y is up, x is right, z is backwards/forwards (negative going forwards)
+                # y is up, x is right, z is backwards/forwards (negative going forwards)
                 return -pos.z, -pos.x
 
         V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
@@ -173,8 +176,9 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     # - this will add the web controller
     # - it will optionally add any configured 'joystick' controller
     #
-    has_input_controller = hasattr(cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
-    ctr = add_user_controller(V, cfg, use_joystick, input_image = 'map/image')
+    has_input_controller = hasattr(
+        cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
+    ctr = add_user_controller(V, cfg, use_joystick, input_image='map/image')
 
     #
     # explode the web buttons into their own key/values in memory
@@ -187,8 +191,8 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     # in the mapping.
     #
     origin_reset = OriginOffset(cfg.PATH_DEBUG)
-    V.add(origin_reset, inputs=['pos/x', 'pos/y', 'cte/closest_pt'], outputs=['pos/x', 'pos/y', 'cte/closest_pt'])
-
+    V.add(origin_reset, inputs=[
+          'pos/x', 'pos/y', 'cte/closest_pt'], outputs=['pos/x', 'pos/y', 'cte/closest_pt'])
 
     #
     # maintain run conditions for user mode and autopilot mode parts.
@@ -197,11 +201,11 @@ def drive(cfg, use_joystick=False, camera_type='single'):
           inputs=['user/mode', "cam/image_array", "cam/image_array"],
           outputs=['run_user', "run_pilot", "ui/image_array"])
 
-
     # This is the path object. It will record a path when distance changes and it travels
     # at least cfg.PATH_MIN_DIST meters. Except when we are in follow mode, see below...
     path = CsvThrottlePath(min_dist=cfg.PATH_MIN_DIST)
-    V.add(path, inputs=['recording', 'pos/x', 'pos/y', 'user/throttle'], outputs=['path', 'throttles'])
+    V.add(path, inputs=['recording', 'pos/x', 'pos/y',
+          'user/throttle'], outputs=['path', 'throttles'])
 
     #
     # log pose
@@ -227,25 +231,27 @@ def drive(cfg, use_joystick=False, camera_type='single'):
                 if gps_player:
                     gps_player.nmea.save()
             else:
-                print("The path could NOT be saved; check the PATH_FILENAME in myconfig.py to make sure it is a legal path")
+                print(
+                    "The path could NOT be saved; check the PATH_FILENAME in myconfig.py to make sure it is a legal path")
         else:
             print("There is no path to save; try recording the path.")
 
     def load_path():
         if os.path.exists(cfg.PATH_FILENAME) and path.load(cfg.PATH_FILENAME):
-           print("The path was loaded was loaded from ", cfg.PATH_FILENAME)
+            print("The path was loaded was loaded from ", cfg.PATH_FILENAME)
 
-           # we loaded the path; also load any recorded gps readings
-           if gps_player:
-               gps_player.stop().nmea.load()
-               gps_player.start()
+            # we loaded the path; also load any recorded gps readings
+            if gps_player:
+                gps_player.stop().nmea.load()
+                gps_player.start()
         else:
-           print("path _not_ loaded; make sure you have saved a path.")
+            print("path _not_ loaded; make sure you have saved a path.")
 
     def erase_path():
         origin_reset.reset_origin()
         if path.reset():
-            print("The origin and the path were reset; you are ready to record a new path.")
+            print(
+                "The origin and the path were reset; you are ready to record a new path.")
             if gps_player:
                 gps_player.stop().nmea.reset()
         else:
@@ -262,7 +268,6 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         if gps_player:
             gps_player.start()
 
-
     # When a path is loaded, we will be in follow mode. We will not record.
     if os.path.exists(cfg.PATH_FILENAME):
         load_path()
@@ -277,13 +282,17 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     V.add(plot, inputs=['map/image', 'path'], outputs=['map/image'])
 
     # This will use path and current position to output cross track error
-    cte = CTE(look_ahead=cfg.PATH_LOOK_AHEAD, look_behind=cfg.PATH_LOOK_BEHIND, num_pts=cfg.PATH_SEARCH_LENGTH)
-    V.add(cte, inputs=['path', 'pos/x', 'pos/y', 'cte/closest_pt'], outputs=['cte/error', 'cte/closest_pt'], run_condition='run_pilot')
+    cte = CTE(look_ahead=cfg.PATH_LOOK_AHEAD,
+              look_behind=cfg.PATH_LOOK_BEHIND, num_pts=cfg.PATH_SEARCH_LENGTH)
+    V.add(cte, inputs=['path', 'pos/x', 'pos/y', 'cte/closest_pt'],
+          outputs=['cte/error', 'cte/closest_pt'], run_condition='run_pilot')
 
     # This will use the cross track error and PID constants to try to steer back towards the path.
     pid = PIDController(p=cfg.PID_P, i=cfg.PID_I, d=cfg.PID_D)
-    pilot = PID_Pilot(pid, cfg.PID_THROTTLE, cfg.USE_CONSTANT_THROTTLE, min_throttle=cfg.PID_THROTTLE)
-    V.add(pilot, inputs=['cte/error', 'throttles', 'cte/closest_pt'], outputs=['pilot/steering', 'pilot/throttle'], run_condition="run_pilot")
+    pilot = PID_Pilot(pid, cfg.PID_THROTTLE,
+                      cfg.USE_CONSTANT_THROTTLE, min_throttle=cfg.PID_THROTTLE)
+    V.add(pilot, inputs=['cte/error', 'throttles', 'cte/closest_pt'],
+          outputs=['pilot/steering', 'pilot/throttle'], run_condition="run_pilot")
 
     def dec_pid_d():
         pid.Kd -= cfg.PID_D_DELTA
@@ -301,10 +310,10 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         pid.Kp += cfg.PID_P_DELTA
         logging.info("pid: p+ %f" % pid.Kp)
 
-
-    recording_control = ToggleRecording(cfg.AUTO_RECORD_ON_THROTTLE, cfg.RECORD_DURING_AI)
-    V.add(recording_control, inputs=['user/mode', "recording"], outputs=["recording"])
-
+    recording_control = ToggleRecording(
+        cfg.AUTO_RECORD_ON_THROTTLE, cfg.RECORD_DURING_AI)
+    V.add(recording_control, inputs=[
+          'user/mode', "recording"], outputs=["recording"])
 
     #
     # Add buttons for handling various user actions
@@ -341,7 +350,8 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     if cfg.ERASE_PATH_BTN:
         print(f"Erase path button is {cfg.ERASE_PATH_BTN}")
         if cfg.ERASE_PATH_BTN.startswith("web/w"):
-            V.add(Lambda(lambda: erase_path()), run_condition=cfg.ERASE_PATH_BTN)
+            V.add(Lambda(lambda: erase_path()),
+                  run_condition=cfg.ERASE_PATH_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.ERASE_PATH_BTN, erase_path)
 
@@ -349,7 +359,8 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     if cfg.RESET_ORIGIN_BTN:
         print(f"Reset origin button is {cfg.RESET_ORIGIN_BTN}")
         if cfg.RESET_ORIGIN_BTN.startswith("web/w"):
-            V.add(Lambda(lambda: reset_origin()), run_condition=cfg.RESET_ORIGIN_BTN)
+            V.add(Lambda(lambda: reset_origin()),
+                  run_condition=cfg.RESET_ORIGIN_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.RESET_ORIGIN_BTN, reset_origin)
 
@@ -357,9 +368,11 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     if cfg.TOGGLE_RECORDING_BTN:
         print(f"Toggle recording button is {cfg.TOGGLE_RECORDING_BTN}")
         if cfg.TOGGLE_RECORDING_BTN.startswith("web/w"):
-            V.add(Lambda(lambda: recording_control.toggle_recording()), run_condition=cfg.TOGGLE_RECORDING_BTN)
+            V.add(Lambda(lambda: recording_control.toggle_recording()),
+                  run_condition=cfg.TOGGLE_RECORDING_BTN)
         elif have_joystick:
-            ctr.set_button_down_trigger(cfg.TOGGLE_RECORDING_BTN, recording_control.toggle_recording)
+            ctr.set_button_down_trigger(
+                cfg.TOGGLE_RECORDING_BTN, recording_control.toggle_recording)
 
     # Buttons to tune PID constants
     if cfg.DEC_PID_P_BTN and cfg.PID_P_DELTA:
@@ -387,7 +400,6 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.INC_PID_D_BTN, inc_pid_d)
 
-
     #
     # Decide what inputs should change the car's steering and throttle
     # based on the choice of user or autopilot drive mode
@@ -405,14 +417,13 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     #
     if is_differential_drive:
         V.add(TwoWheelSteeringThrottle(),
-            inputs=['throttle', 'steering'],
-            outputs=['left/throttle', 'right/throttle'])
+              inputs=['throttle', 'steering'],
+              outputs=['left/throttle', 'right/throttle'])
 
     #
     # Setup drivetrain
     #
     add_drivetrain(V, cfg)
-
 
     #
     # OLED display setup
@@ -420,9 +431,10 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     if cfg.USE_SSD1306_128_32:
         from donkeycar.parts.oled import OLEDPart
         auto_record_on_throttle = cfg.USE_JOYSTICK_AS_DEFAULT and cfg.AUTO_RECORD_ON_THROTTLE
-        oled_part = OLEDPart(cfg.SSD1306_128_32_I2C_ROTATION, cfg.SSD1306_RESOLUTION, auto_record_on_throttle)
-        V.add(oled_part, inputs=['recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
-
+        oled_part = OLEDPart(cfg.SSD1306_128_32_I2C_ROTATION,
+                             cfg.SSD1306_RESOLUTION, auto_record_on_throttle)
+        V.add(oled_part, inputs=[
+              'recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
 
     # Print Joystick controls
     if ctr is not None and isinstance(ctr, JoystickController):
@@ -431,15 +443,18 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     #
     # draw a map image as the vehicle moves
     #
-    loc_plot = PlotCircle(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET, color = "blue")
-    V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'], outputs=['map/image'], run_condition='run_pilot')
+    loc_plot = PlotCircle(scale=cfg.PATH_SCALE,
+                          offset=cfg.PATH_OFFSET, color="blue")
+    V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'],
+          outputs=['map/image'], run_condition='run_pilot')
 
-    loc_plot = PlotCircle(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET, color = "green")
-    V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'], outputs=['map/image'], run_condition='run_user')
+    loc_plot = PlotCircle(scale=cfg.PATH_SCALE,
+                          offset=cfg.PATH_OFFSET, color="green")
+    V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'],
+          outputs=['map/image'], run_condition='run_user')
 
-
-    V.start(rate_hz=cfg.DRIVE_LOOP_HZ, 
-        max_loop_count=cfg.MAX_LOOPS)
+    V.start(rate_hz=cfg.DRIVE_LOOP_HZ,
+            max_loop_count=cfg.MAX_LOOPS)
 
 
 def add_gps(V, cfg):
@@ -463,18 +478,25 @@ def add_gps(V, cfg):
         # part to save nmea sentences for later playback
         nmea_player = None
         if cfg.GPS_NMEA_PATH:
-            nmea_writer = CsvLogger(cfg.GPS_NMEA_PATH, separator='\t', field_count=2)
-            V.add(nmea_writer, inputs=['recording', 'gps/nmea'], outputs=['gps/recorded/nmea'])  # only record nmea sentences in user mode
+            nmea_writer = CsvLogger(
+                cfg.GPS_NMEA_PATH, separator='\t', field_count=2)
+            # only record nmea sentences in user mode
+            V.add(nmea_writer, inputs=[
+                  'recording', 'gps/nmea'], outputs=['gps/recorded/nmea'])
             nmea_player = GpsPlayer(nmea_writer)
-            V.add(nmea_player, inputs=['run_pilot', 'gps/nmea'], outputs=['gps/playing', 'gps/nmea'])  # only play nmea sentences in autopilot mode
+            # only play nmea sentences in autopilot mode
+            V.add(nmea_player, inputs=[
+                  'run_pilot', 'gps/nmea'], outputs=['gps/playing', 'gps/nmea'])
 
         gps_positions = GpsNmeaPositions(debug=cfg.GPS_DEBUG)
         V.add(gps_positions, inputs=['gps/nmea'], outputs=['gps/positions'])
         gps_latest_position = GpsLatestPosition(debug=cfg.GPS_DEBUG)
-        V.add(gps_latest_position, inputs=['gps/positions'], outputs=['gps/timestamp', 'gps/utm/longitude', 'gps/utm/latitude'])
+        V.add(gps_latest_position, inputs=[
+              'gps/positions'], outputs=['gps/timestamp', 'gps/utm/longitude', 'gps/utm/latitude'])
 
         # rename gps utm position to pose values
-        V.add(Pipe(), inputs=['gps/utm/longitude', 'gps/utm/latitude'], outputs=['pos/x', 'pos/y'])
+        V.add(Pipe(), inputs=['gps/utm/longitude',
+              'gps/utm/latitude'], outputs=['pos/x', 'pos/y'])
 
         return nmea_player
 
@@ -488,7 +510,6 @@ if __name__ == '__main__':
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % log_level)
     logging.basicConfig(level=numeric_level)
-
 
     if args['drive']:
         drive(cfg, use_joystick=args['--js'], camera_type=args['--camera'])

@@ -32,14 +32,14 @@ def drive(cfg):
     to parts requesting the same named input.
     '''
 
-    #Initialize car
-    V = dk.vehicle.Vehicle()
+    # Initialize car
+    V = dk.Vehicle()
     ctr = get_js_controller(cfg)
     V.add(ctr,
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
-    #Drive train setup
+    # Drive train setup
     arduino_controller = ArduinoFirmata(
         servo_pin=cfg.STEERING_ARDUINO_PIN, esc_pin=cfg.THROTTLE_ARDUINO_PIN)
     steering = ArdPWMSteering(controller=arduino_controller,
@@ -54,7 +54,7 @@ def drive(cfg):
     V.add(steering, inputs=['user/angle'])
     V.add(throttle, inputs=['user/throttle'])
 
-    #run the vehicle
+    # run the vehicle
     V.start(rate_hz=cfg.DRIVE_LOOP_HZ,
             max_loop_count=cfg.MAX_LOOPS)
 

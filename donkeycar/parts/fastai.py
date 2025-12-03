@@ -10,6 +10,38 @@ include one or more models to help direct the vehicles motion.
 from abc import ABC, abstractmethod
 
 import numpy as np
+# Compatibility shim: some fastai/torch serialization paths expect
+# `numpy.dtypes` to exist (and provide a `__all__`). Older numpy
+# builds may not expose `dtypes` as a top-level attribute. If it's
+# missing, point it at `numpy.core.numerictypes` which provides the
+# expected interface.
+if not hasattr(np, 'dtypes'):
+    # Build a minimal, safe `dtypes` proxy exposing common scalar types
+    # that fastai/torch serialization expects. Avoid exposing mapping
+    # objects (like sctypeDict) which are unhashable and break the
+    # safe_globals set operations.
+    import types
+    _d = types.SimpleNamespace()
+    _d.__all__ = [
+        'bool_', 'int8', 'int16', 'int32', 'int64',
+        'uint8', 'uint16', 'uint32', 'uint64',
+        'float16', 'float32', 'float64',
+        'complex64', 'complex128',
+        'object_', 'str_', 'bytes_',
+    ]
+    # Map attributes to numpy scalar types where available
+    for name in list(_d.__all__):
+        try:
+            setattr(_d, name, getattr(np, name))
+        except AttributeError:
+            # fallback: try np.dtype(name) for names like 'int32'
+            try:
+                setattr(_d, name, np.dtype(name))
+            except Exception:
+                # if we can't resolve it, remove from __all__ to keep list
+                _d.__all__.remove(name)
+
+    np.dtypes = _d
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Union, List, Sequence, Callable
 from logging import getLogger
@@ -103,7 +135,8 @@ class FastAiPilot(ABC):
         """
         transform = get_default_transform(resize=False)
         norm_arr = transform(img_arr)
-        tensor_other_array = torch.FloatTensor(other_arr) if other_arr else None
+        tensor_other_array = torch.FloatTensor(
+            other_arr) if other_arr else None
         return self.inference(norm_arr, tensor_other_array)
 
     def inference(self, img_arr: torch.tensor, other_arr: Optional[torch.tensor]) \
@@ -157,11 +190,11 @@ class FastAiPilot(ABC):
         assert isinstance(self.interpreter, FastAIInterpreter)
         model = self.interpreter.model
 
-        dataLoader = DataLoaders.from_dsets(train_data, validation_data, bs=batch_size, shuffle=False)
+        dataLoader = DataLoaders.from_dsets(
+            train_data, validation_data, bs=batch_size, shuffle=False)
         # old way of enabling gpu now crashes with torch 2.1.*
         # if torch.cuda.is_available():
         #     dataLoader.cuda()
-
 
         callbacks = [
             EarlyStoppingCallback(monitor='valid_loss',
@@ -172,7 +205,8 @@ class FastAiPilot(ABC):
                               )
         ]
 
-        self.learner = Learner(dataLoader, model, loss_func=self.loss, path=Path(model_path).parent)
+        self.learner = Learner(
+            dataLoader, model, loss_func=self.loss, path=Path(model_path).parent)
 
         logger.info(self.learner.summary())
         logger.info(self.learner.loss_func)
@@ -190,7 +224,8 @@ class FastAiPilot(ABC):
             self.learner.recorder.plot_loss()
             plt.savefig(Path(model_path).with_suffix('.png'))
 
-        history = { "loss" : list(map((lambda x: x.item()), self.learner.recorder.losses)) }
+        history = {"loss": list(
+            map((lambda x: x.item()), self.learner.recorder.losses))}
         return history
 
     def __str__(self) -> str:

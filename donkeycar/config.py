@@ -7,30 +7,61 @@ Created on Wed Sep 13 21:27:44 2017
 import os
 import types
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
 
 class Config:
-    
+    """
+    Config class for managing application configuration.
+    This class provides methods to load, update, display, and save configuration
+    settings from various sources such as Python files, dictionaries, and objects.
+    Configuration keys are expected to be uppercase.
+    Methods
+    -------
+    from_pyfile(filename):
+        Loads configuration from a JSON file and updates the config object.
+    from_object(obj):
+        Updates the config object with uppercase attributes from the given object.
+    from_dict(d, keys=None):
+        Overwrites config values from a dictionary for specified keys or all if keys is empty.
+    __str__():
+        Returns a string representation of all uppercase config attributes.
+    show():
+        Prints all uppercase config attributes and their values.
+    to_pyfile(path):
+        Writes all uppercase config attributes to a Python file at the specified path.
+    """
+
     def from_pyfile(self, filename):
+        """Load config values from a Python config file.
+
+        The configuration file is executed in a fresh module namespace and
+        any UPPERCASE attributes are copied into this Config instance.
+        """
         d = types.ModuleType('config')
         d.__file__ = filename
         try:
-            with open(filename, mode='rb') as config_file:
-                exec(compile(config_file.read(), filename, 'exec'), d.__dict__)
+            with open(filename, 'r', encoding='utf-8') as config_file:
+                config_content = config_file.read()
+                # Execute the python config file in the module namespace
+                exec(compile(config_content, filename, 'exec'), d.__dict__)
         except IOError as e:
-            e.strerror = 'Unable to load configuration file (%s)' % e.strerror
-            raise
+            error_message = f'Unable to load configuration file: {e.strerror}'
+            raise IOError(error_message) from e
         self.from_object(d)
         return True
-    
+
     def from_object(self, obj):
+        """Update config values from an object."""
         for key in dir(obj):
             if key.isupper():
                 setattr(self, key, getattr(obj, key))
 
-    def from_dict(self, d, keys=[]):
+    def from_dict(self, d, keys=None):
+        """Overwrite config values from a dictionary."""
+        keys = keys or []
         msg = 'Overwriting config with: '
         for k, v in d.items():
             if k.isupper():
@@ -40,6 +71,7 @@ class Config:
         logger.info(msg)
 
     def __str__(self):
+        """Return a string representation of all uppercase config attributes."""
         result = []
         for key in dir(self):
             if key.isupper():
@@ -47,11 +79,13 @@ class Config:
         return str(result)
 
     def show(self):
+        """Print all uppercase config attributes and their values."""
         for attr in dir(self):
             if attr.isupper():
                 print(attr, ":", getattr(self, attr))
 
     def to_pyfile(self, path):
+        """Write all uppercase config attributes to a Python file."""
         lines = []
         for attr in dir(self):
             if attr.isupper():
@@ -59,12 +93,25 @@ class Config:
                 if isinstance(v, str):
                     v = f'"{v}"'
                 lines.append(f'{attr} = {v}{os.linesep}')
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
 
 def load_config(config_path=None, myconfig="myconfig.py"):
-    
+    """
+    Load the main configuration file and optionally override with a personal configuration file.
+    Args:
+        config_path (str, optional): Path to the main configuration file. If None, attempts to find 'config.py'
+            in the current working directory or current directory.
+        myconfig (str, optional): Filename for the personal configuration file to override main config.
+            Defaults to 'myconfig.py'.
+    Returns:
+        Config: An instance of Config with settings loaded from the main config file and optionally overridden
+            by the personal config file.
+    Logs:
+        - Info message when loading the main and personal config files.
+        - Warning if the personal config file is not found.
+    """
     if config_path is None:
         main_path = os.getcwd()
         config_path = os.path.join(main_path, 'config.py')
@@ -72,19 +119,19 @@ def load_config(config_path=None, myconfig="myconfig.py"):
             local_config = os.path.join(os.path.curdir, 'config.py')
             if os.path.exists(local_config):
                 config_path = local_config
-    
-    logger.info(f'loading config file: {config_path}')
+
+    logger.info('loading config file: %s', config_path)
     cfg = Config()
     cfg.from_pyfile(config_path)
 
     # look for the optional myconfig.py in the same path.
     personal_cfg_path = config_path.replace("config.py", myconfig)
     if os.path.exists(personal_cfg_path):
-        logger.info(f"loading personal config over-rides from {myconfig}")
+        logger.info("loading personal config over-rides from %s", myconfig)
         personal_cfg = Config()
         personal_cfg.from_pyfile(personal_cfg_path)
         cfg.from_object(personal_cfg)
     else:
-        logger.warning(f"personal config: file not found {personal_cfg_path}")
+        logger.warning("personal config: file not found %s", personal_cfg_path)
 
     return cfg

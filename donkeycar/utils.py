@@ -30,6 +30,7 @@ ONE_BYTE_SCALE = 1.0 / 255.0
 
 class EqMemorizedString:
     """ String that remembers what it was compared against """
+
     def __init__(self, string):
         self.string = string
         self.mem = set()
@@ -52,7 +53,7 @@ def scale(im, size=128):
     accepts: PIL image, size of square sides
     returns: PIL image scaled so sides length == size
     """
-    size = (size,size)
+    size = (size, size)
     im.thumbnail(size, Image.ANTIALIAS)
     return im
 
@@ -175,7 +176,7 @@ def load_pil_image(filename, cfg):
 
         if cfg.IMAGE_DEPTH == 1:
             img = img.convert('L')
-        
+
         return img
 
     except Exception as e:
@@ -189,7 +190,8 @@ def load_image(filename, cfg):
     :param cfg:                 donkey config
     :return np.ndarray:         numpy uint8 image array
     """
-    img_arr = load_image_sized(filename, cfg.IMAGE_W, cfg.IMAGE_H, cfg.IMAGE_DEPTH)
+    img_arr = load_image_sized(
+        filename, cfg.IMAGE_W, cfg.IMAGE_H, cfg.IMAGE_DEPTH)
 
     return img_arr
 
@@ -254,7 +256,7 @@ def zip_dir(dir_path, zip_path):
     """
     Create and save a zipfile of a one level directory
     """
-    file_paths = glob.glob(dir_path + "/*") #create path to search for files.
+    file_paths = glob.glob(dir_path + "/*")  # create path to search for files.
 
     zf = zipfile.ZipFile(zip_path, 'w')
     dir_name = os.path.basename(dir_path)
@@ -263,7 +265,6 @@ def zip_dir(dir_path, zip_path):
         zf.write(p, arcname=os.path.join(dir_name, file_name))
     zf.close()
     return zip_path
-
 
 
 '''
@@ -333,7 +334,8 @@ def map_range_float(x, X_min, X_max, Y_min, Y_max):
 
     # print("y= {}".format(y))
 
-    return round(y,2)
+    return round(y, 2)
+
 
 '''
 ANGLES
@@ -354,6 +356,7 @@ DEG_TO_RAD = math.pi / 180.0
 def deg2rad(theta):
     return theta * DEG_TO_RAD
 
+
 '''
 VECTORS
 '''
@@ -372,6 +375,7 @@ def my_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(('192.0.0.8', 1027))
     return s.getsockname()[0]
+
 
 '''
 THROTTLE
@@ -395,12 +399,14 @@ def throttle(input_value):
     dampening = DAMPENING * magnitude
     return ((1 / decay) - dampening)
 
+
 '''
 OTHER
 '''
 
+
 def is_number_type(i):
-    return type(i) == int or type(i) == float;
+    return type(i) == int or type(i) == float
 
 
 def sign(x):
@@ -412,12 +418,12 @@ def sign(x):
 
 
 def compare_to(
-    value:float,      # IN : value to compare
-    toValue:float,    # IN : value to compare with tolerance
-    tolerance:float): # IN : non-negative tolerance
-                      # RET: 1 if value > toValue + tolerance
-                      #      -1 if value < toValue - tolerance
-                      #      otherwise zero
+        value: float,      # IN : value to compare
+        toValue: float,    # IN : value to compare with tolerance
+        tolerance: float):  # IN : non-negative tolerance
+    # RET: 1 if value > toValue + tolerance
+    #      -1 if value < toValue - tolerance
+    #      otherwise zero
     if (toValue - value) > tolerance:
         return -1
     if (value - toValue) > tolerance:
@@ -452,11 +458,45 @@ def param_gen(params):
     a list of dictionary with the permutations of the parameters.
     '''
     for p in itertools.product(*params.values()):
-        yield dict(zip(params.keys(), p ))
+        yield dict(zip(params.keys(), p))
 
 
 def run_shell_command(cmd, cwd=None, timeout=15):
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    # On Windows the console entry-point script name (e.g. 'donkey') may not be
+    # available on PATH in the test environment. If the caller invoked the
+    # project's console command by name, run it via the Python module entry
+    # point so tests can execute commands portably.
+    if isinstance(cmd, (list, tuple)) and len(cmd) > 0 and cmd[0] == 'donkey':
+        # Run the package entry point via Python module to be portable on
+        # Windows and in test environments where the entry script isn't on PATH.
+        cmd = [sys.executable, '-m',
+               'donkeycar.management.base'] + list(cmd[1:])
+        # Ensure the repository root is on PYTHONPATH so the module can be
+        # imported when running from a car directory (cwd may not be repo root).
+        repo_root = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..'))
+        env = os.environ.copy()
+        prev = env.get('PYTHONPATH', '')
+        env['PYTHONPATH'] = repo_root + (os.pathsep + prev if prev else '')
+
+    # If invoking a manage.py script, ensure the repository root is on
+    # PYTHONPATH so `import donkeycar` in the generated `manage.py` works
+    # when tests spawn `python manage.py` from a car directory.
+    # `env` may already be set above for 'donkey' invocations; only create
+    # a new env when managing `python manage.py` calls.
+    if 'env' not in locals() or env is None:
+        env = None
+    if isinstance(cmd, (list, tuple)) and len(cmd) > 1 and \
+       os.path.basename(cmd[1]) == 'manage.py':
+        # The repository root is one level above the `donkeycar` package
+        repo_root = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..'))
+        env = os.environ.copy()
+        prev = env.get('PYTHONPATH', '')
+        env['PYTHONPATH'] = repo_root + (os.pathsep + prev if prev else '')
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, cwd=cwd, env=env)
     out = []
     err = []
 

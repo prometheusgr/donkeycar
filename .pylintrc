@@ -1,0 +1,49 @@
+[MASTER]
+# A baseline pylintrc tuned for this repository to reduce noise from
+# intentional hardware/deferred imports and large wiring functions.
+ignore=venv,.venv,build,dist
+persistent=yes
+# Add the project root to sys.path so pylint can resolve local imports
+init-hook="import sys, os; sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))"
+jobs=1
+ignored-modules=donkeycar,donkeycar.parts,donkeycar.pipeline,tensorflow
+
+[MESSAGES CONTROL]
+# Allow import-outside-toplevel because many hardware-specific parts
+# are imported lazily to avoid failing import on systems without hardware
+# dependencies. Keep other checks enabled so we catch real issues.
+disable=import-outside-toplevel,missing-module-docstring,missing-class-docstring
+
+[FORMAT]
+max-line-length=200
+
+[DESIGN]
+# Increase thresholds for wiring and bootstrap modules which are large by nature
+max-args=7
+max-locals=30
+max-branches=30
+max-statements=250
+max-parents=7
+max-returns=12
+max-attributes=15
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,cfg
+
+[REPORTS]
+output-format=text
+reports=no
+
+[SIMILARITIES]
+min-similarity-lines=6
+
+[TYPECHECK]
+ignored-classes=SQLObject,OptParse,Property
+
+[REFACTORING]
+# keep defaults
+
+[LOGGING]
+# allow logging calls with % format (default)
+logging-format-style=old
+logging-modules=logging

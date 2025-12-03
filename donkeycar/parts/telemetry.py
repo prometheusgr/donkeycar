@@ -37,12 +37,16 @@ class MqttTelemetry(StreamHandler):
         self._step_inputs = cfg.TELEMETRY_DEFAULT_INPUTS.split(',')
         self._step_types = cfg.TELEMETRY_DEFAULT_TYPES.split(',')
         self._total_updates = 0
-        self._donkey_name = os.environ.get('DONKEY_NAME', cfg.TELEMETRY_DONKEY_NAME)
-        self._mqtt_broker = os.environ.get('DONKEY_MQTT_BROKER', cfg.TELEMETRY_MQTT_BROKER_HOST)  # 'iot.eclipse.org'
+        self._donkey_name = os.environ.get(
+            'DONKEY_NAME', cfg.TELEMETRY_DONKEY_NAME)
+        self._mqtt_broker = os.environ.get(
+            'DONKEY_MQTT_BROKER', cfg.TELEMETRY_MQTT_BROKER_HOST)  # 'iot.eclipse.org'
         self._topic = cfg.TELEMETRY_MQTT_TOPIC_TEMPLATE % self._donkey_name
         self._use_json_format = cfg.TELEMETRY_MQTT_JSON_ENABLE
-        self._mqtt_client = MQTTClient(callback_api_version=CallbackAPIVersion.VERSION2)
-        self._mqtt_client.connect(self._mqtt_broker, cfg.TELEMETRY_MQTT_BROKER_PORT)
+        self._mqtt_client = MQTTClient(
+            callback_api_version=CallbackAPIVersion.VERSION2)
+        self._mqtt_client.connect(
+            self._mqtt_broker, cfg.TELEMETRY_MQTT_BROKER_PORT)
         self._mqtt_client.loop_start()
         self._on = True
         if cfg.TELEMETRY_LOGGING_ENABLE:
@@ -51,14 +55,14 @@ class MqttTelemetry(StreamHandler):
             logger.addHandler(self)
 
     def add_step_inputs(self, inputs, types):
-   
+
         # Add inputs if supported and not yet registered
         for ind in range(0, len(inputs or [])):
             if types[ind] in ['float', 'str', 'int'] and inputs[ind] not in self._step_inputs:
                 self._step_inputs.append(inputs[ind])
                 self._step_types.append(types[ind])
-                
-        return self._step_inputs, self._step_types        
+
+        return self._step_inputs, self._step_types
 
     @staticmethod
     def filter_supported_metrics(inputs, types):
@@ -105,7 +109,7 @@ class MqttTelemetry(StreamHandler):
 
         if not packet:
             return
-            
+
         if self._use_json_format:
             packet = [{'ts': k, 'values': v} for k, v in packet.items()]
             payload = json.dumps(packet)
@@ -120,7 +124,7 @@ class MqttTelemetry(StreamHandler):
             for k, v in last_sample.items():
                 if k in self._step_inputs:
                     topic = f'{self._topic}/{k}'
-                    
+
                     try:
                         # Convert unsupported numpy types to python standard
                         if isinstance(v, np.generic):
@@ -128,7 +132,8 @@ class MqttTelemetry(StreamHandler):
 
                         self._mqtt_client.publish(topic, v)
                     except TypeError:
-                        logger.error(f'Cannot publish topic "{topic}" with value of type {type(v)}')
+                        logger.error(
+                            f'Cannot publish topic "{topic}" with value of type {type(v)}')
                     except Exception as e:
                         logger.error(f'Error publishing log {topic}: {e}')
 
@@ -150,7 +155,7 @@ class MqttTelemetry(StreamHandler):
         pairs them with their inputs keys and saves them to disk.
         """
         assert len(self._step_inputs) == len(args)
-        
+
         # Add to queue
         record = dict(zip(self._step_inputs, args))
         self.report(record)
@@ -173,7 +178,8 @@ class MqttTelemetry(StreamHandler):
         return self.qsize
 
     def update(self):
-        logger.info(f"Telemetry MQTT server connected (publishing: { ', '.join(self._step_inputs) })")
+        logger.info(
+            f"Telemetry MQTT server connected (publishing: { ', '.join(self._step_inputs) })")
         while self._on:
             self.publish()
             time.sleep(self.PUBLISH_PERIOD)

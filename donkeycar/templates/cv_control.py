@@ -44,9 +44,9 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     Parts may have named outputs and inputs. The framework handles passing named outputs
     to parts requesting the same named input.
     '''
-    
-    #Initialize car
-    V = dk.vehicle.Vehicle()
+
+    # Initialize car
+    V = dk.Vehicle()
 
     #
     # if we are using the simulator, set it up
@@ -63,8 +63,10 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     # - this will add the web controller
     # - it will optionally add any configured 'joystick' controller
     #
-    has_input_controller = hasattr(cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
-    ctr = add_user_controller(V, cfg, use_joystick, input_image = 'ui/image_array')
+    has_input_controller = hasattr(
+        cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
+    ctr = add_user_controller(V, cfg, use_joystick,
+                              input_image='ui/image_array')
 
     #
     # explode the web buttons into their own key/values in memory
@@ -82,6 +84,7 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     # PID controller to be used with cv_controller
     #
     pid = PID(Kp=cfg.PID_P, Ki=cfg.PID_I, Kd=cfg.PID_D)
+
     def dec_pid_d():
         pid.Kd -= cfg.PID_D_DELTA
         logging.info("pid: d- %f" % pid.Kd)
@@ -108,9 +111,10 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
                       cfg.CV_CONTROLLER_OUTPUTS,
                       cfg.CV_CONTROLLER_CONDITION)
 
-    recording_control = ToggleRecording(cfg.AUTO_RECORD_ON_THROTTLE, cfg.RECORD_DURING_AI)
-    V.add(recording_control, inputs=['user/mode', "recording"], outputs=["recording"])
-
+    recording_control = ToggleRecording(
+        cfg.AUTO_RECORD_ON_THROTTLE, cfg.RECORD_DURING_AI)
+    V.add(recording_control, inputs=[
+          'user/mode', "recording"], outputs=["recording"])
 
     #
     # Add buttons for handling various user actions
@@ -128,9 +132,11 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     if cfg.TOGGLE_RECORDING_BTN:
         print(f"Toggle recording button is {cfg.TOGGLE_RECORDING_BTN}")
         if cfg.TOGGLE_RECORDING_BTN.startswith("web/w"):
-            V.add(Lambda(lambda: recording_control.toggle_recording()), run_condition=cfg.TOGGLE_RECORDING_BTN)
+            V.add(Lambda(lambda: recording_control.toggle_recording()),
+                  run_condition=cfg.TOGGLE_RECORDING_BTN)
         elif have_joystick:
-            ctr.set_button_down_trigger(cfg.TOGGLE_RECORDING_BTN, recording_control.toggle_recording)
+            ctr.set_button_down_trigger(
+                cfg.TOGGLE_RECORDING_BTN, recording_control.toggle_recording)
 
     # Buttons to tune PID constants
     if cfg.DEC_PID_P_BTN and cfg.PID_P_DELTA:
@@ -167,12 +173,10 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
                   'pilot/steering', 'pilot/throttle'],
           outputs=['steering', 'throttle'])
 
-
     #
     # Setup drivetrain
     #
     add_drivetrain(V, cfg)
-
 
     #
     # OLED display setup
@@ -180,18 +184,19 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     if cfg.USE_SSD1306_128_32:
         from donkeycar.parts.oled import OLEDPart
         auto_record_on_throttle = cfg.USE_JOYSTICK_AS_DEFAULT and cfg.AUTO_RECORD_ON_THROTTLE
-        oled_part = OLEDPart(cfg.SSD1306_128_32_I2C_ROTATION, cfg.SSD1306_RESOLUTION, auto_record_on_throttle)
-        V.add(oled_part, inputs=['recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
-
+        oled_part = OLEDPart(cfg.SSD1306_128_32_I2C_ROTATION,
+                             cfg.SSD1306_RESOLUTION, auto_record_on_throttle)
+        V.add(oled_part, inputs=[
+              'recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
 
     #
     # add tub to save data
     #
-    inputs=['cam/image_array',
-            'steering', 'throttle']
+    inputs = ['cam/image_array',
+              'steering', 'throttle']
 
-    types=['image_array',
-           'float', 'float']
+    types = ['image_array',
+             'float', 'float']
 
     #
     # Create data storage part
@@ -200,12 +205,15 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
         cfg.AUTO_CREATE_NEW_TUB else cfg.DATA_PATH
     meta += getattr(cfg, 'METADATA', [])
     tub_writer = TubWriter(tub_path, inputs=inputs, types=types, metadata=meta)
-    V.add(tub_writer, inputs=inputs, outputs=["tub/num_records"], run_condition='recording')
+    V.add(tub_writer, inputs=inputs, outputs=[
+          "tub/num_records"], run_condition='recording')
 
     if cfg.DONKEY_GYM:
-        print("You can now go to http://localhost:%d to drive your car." % cfg.WEB_CONTROL_PORT)
+        print("You can now go to http://localhost:%d to drive your car." %
+              cfg.WEB_CONTROL_PORT)
     else:
-        print("You can now go to <your hostname.local>:%d to drive your car." % cfg.WEB_CONTROL_PORT)
+        print("You can now go to <your hostname.local>:%d to drive your car." %
+              cfg.WEB_CONTROL_PORT)
     if has_input_controller:
         print("You can now move your controller to drive your car.")
         if isinstance(ctr, JoystickController):
@@ -215,7 +223,7 @@ def drive(cfg, use_joystick=False, camera_type='single', meta=[]):
     #
     # run the vehicle
     #
-    V.start(rate_hz=cfg.DRIVE_LOOP_HZ, 
+    V.start(rate_hz=cfg.DRIVE_LOOP_HZ,
             max_loop_count=cfg.MAX_LOOPS)
 
 
@@ -230,20 +238,20 @@ def add_cv_controller(
         outputs=['pilot/steering', 'pilot/throttle', 'cv/image_array'],
         run_condition="run_pilot"):
 
-        # __import__ the module
-        module = __import__(module_name)
+    # __import__ the module
+    module = __import__(module_name)
 
-        # walk module path to get to module with class
-        for attr in module_name.split('.')[1:]:
-            module = getattr(module, attr)
+    # walk module path to get to module with class
+    for attr in module_name.split('.')[1:]:
+        module = getattr(module, attr)
 
-        my_class = getattr(module, class_name)
+    my_class = getattr(module, class_name)
 
-        # add instance of class to vehicle
-        V.add(my_class(pid, cfg),
-              inputs=inputs,
-              outputs=outputs,
-              run_condition=run_condition)
+    # add instance of class to vehicle
+    V.add(my_class(pid, cfg),
+          inputs=inputs,
+          outputs=outputs,
+          run_condition=run_condition)
 
 
 if __name__ == '__main__':
