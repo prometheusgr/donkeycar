@@ -14,7 +14,22 @@ import logging
 import time
 import asyncio
 
-import requests
+try:
+    import requests
+except Exception:  # pragma: no cover - fallback for test env without requests
+    class _ReqEx:
+        class ReadTimeout(Exception):
+            pass
+
+        class ConnectionError(Exception):
+            pass
+
+    class _Session:
+        def post(self, *args, **kwargs):
+            raise _ReqEx.ConnectionError("requests not installed in test env")
+
+    requests = type('requests', (), {
+                    'exceptions': _ReqEx, 'Session': _Session})
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RedirectHandler, StaticFileHandler, \
     RequestHandler
@@ -84,7 +99,7 @@ class RemoteWebServer():
             except requests.ConnectionError as err:
                 # try to reconnect every 3 seconds
                 print("\n Vehicle could not connect to server. Make sure you've " +
-                    "started your server and you're referencing the right port.")
+                      "started your server and you're referencing the right port.")
                 time.sleep(3)
 
         data = json.loads(response.text)
@@ -123,7 +138,6 @@ class LocalWebController(tornado.web.Application):
         self.num_records = 0
         self.wsclients = []
         self.loop = None
-
 
         handlers = [
             (r"/", RedirectHandler, dict(url="/drive")),
@@ -187,9 +201,9 @@ class LocalWebController(tornado.web.Application):
             self.recording = recording
             changes["recording"] = self.recording
         if self.recording_latch is not None:
-            self.recording = self.recording_latch;
-            self.recording_latch = None;
-            changes["recording"] = self.recording;
+            self.recording = self.recording_latch
+            self.recording_latch = None
+            changes["recording"] = self.recording
 
         # Send record count to websocket clients
         if (self.num_records is not None and self.recording is True):
@@ -253,6 +267,7 @@ class WsTest(RequestHandler):
 
 class CalibrateHandler(RequestHandler):
     """ Serves the calibration web page"""
+
     async def get(self):
         await self.render("templates/calibrate.html")
 
@@ -286,7 +301,8 @@ class WebSocketDriveAPI(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         data = json.loads(message)
         self.application.angle = data.get('angle', self.application.angle)
-        self.application.throttle = data.get('throttle', self.application.throttle)
+        self.application.throttle = data.get(
+            'throttle', self.application.throttle)
         if data.get('drive_mode') is not None:
             self.application.mode = data['drive_mode']
             self.application.mode_latch = self.application.mode
@@ -322,7 +338,7 @@ class WebSocketCalibrateAPI(tornado.websocket.WebSocketHandler):
         if 'config' in data:
             config = data['config']
             if self.application.drive_train_type == "PWM_STEERING_THROTTLE" \
-                or self.application.drive_train_type == "I2C_SERVO":
+                    or self.application.drive_train_type == "I2C_SERVO":
                 if 'STEERING_LEFT_PWM' in config:
                     self.application.drive_train['steering'].left_pulse = config['STEERING_LEFT_PWM']
 
@@ -340,9 +356,9 @@ class WebSocketCalibrateAPI(tornado.websocket.WebSocketHandler):
 
             elif self.application.drive_train_type == "MM1":
                 if ('MM1_STEERING_MID' in config) and (config['MM1_STEERING_MID'] != 0):
-                        self.application.drive_train.STEERING_MID = config['MM1_STEERING_MID']
+                    self.application.drive_train.STEERING_MID = config['MM1_STEERING_MID']
                 if ('MM1_MAX_FORWARD' in config) and (config['MM1_MAX_FORWARD'] != 0):
-                        self.application.drive_train.MAX_FORWARD = config['MM1_MAX_FORWARD']
+                    self.application.drive_train.MAX_FORWARD = config['MM1_MAX_FORWARD']
                 if ('MM1_MAX_REVERSE' in config) and (config['MM1_MAX_REVERSE'] != 0):
                     self.application.drive_train.MAX_REVERSE = config['MM1_MAX_REVERSE']
 
@@ -357,8 +373,8 @@ class VideoAPI(RequestHandler):
 
     async def get(self):
         placeholder_image = utils.load_image_sized(
-                        os.path.join(self.application.static_file_path,
-                                     "img_placeholder.jpg"), 160, 120, 3)
+            os.path.join(self.application.static_file_path,
+                         "img_placeholder.jpg"), 160, 120, 3)
 
         self.set_header("Content-type",
                         "multipart/x-mixed-replace;boundary=--boundarydonotcross")
@@ -393,6 +409,7 @@ class VideoAPI(RequestHandler):
 
 class BaseHandler(RequestHandler):
     """ Serves the FPV web page"""
+
     async def get(self):
         data = {}
         await self.render("templates/base_fpv.html", **data)
@@ -440,5 +457,3 @@ class WebFpv(Application):
 
     def shutdown(self):
         pass
-
-

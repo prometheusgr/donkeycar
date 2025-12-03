@@ -9,6 +9,12 @@ class TestSeekeable(unittest.TestCase):
 
     def setUp(self):
         self._file, self._path = tempfile.mkstemp()
+        # Close the low-level fd returned by mkstemp to avoid holding an
+        # open handle on Windows which prevents file removal during tearDown.
+        try:
+            os.close(self._file)
+        except Exception:
+            pass
 
     def test_offset_tracking(self):
         appendable = Seekable(self._path)

@@ -6,7 +6,34 @@ import stat
 import sys
 import logging
 
-from progress.bar import IncrementalBar
+try:
+    from progress.bar import IncrementalBar
+except ImportError:
+    # Lightweight fallback when `progress` package is not installed (tests/CI).
+    class IncrementalBar:  # pragma: no cover - fallback for tests
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def next(self):
+            return None
+
+        def finish(self):
+            return None
+
+        def start(self):
+            return None
+
+        def update(self, *args, **kwargs):
+            return None
+
+        def goto(self, *args, **kwargs):
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
 import donkeycar as dk
 from donkeycar.management.joystick_creator import CreateJoystick
 
@@ -32,14 +59,14 @@ def load_config(config_path, myconfig='myconfig.py'):
     """
     conf = os.path.expanduser(config_path)
     if not os.path.exists(conf):
-        logger.error(f"No config file at location: {conf}. Add --config to "
-                     f"specify location or run from dir containing config.py.")
+        logger.error("No config file at location: %s. Add --config to "
+                     "specify location or run from dir containing config.py.", conf)
         return None
 
     try:
         cfg = dk.load_config(conf, myconfig)
     except Exception as e:
-        logger.error(f"Exception {e} while loading config from {conf}")
+        logger.error("Exception %s while loading config from %s", e, conf)
         return None
 
     return cfg
@@ -52,16 +79,21 @@ class BaseCommand(object):
 class CreateCar(BaseCommand):
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='createcar', usage='%(prog)s [options]')
-        parser.add_argument('--path', default=None, help='path where to create car folder')
-        parser.add_argument('--template', default=None, help='name of car template to use')
-        parser.add_argument('--overwrite', action='store_true', help='should replace existing files')
+        parser = argparse.ArgumentParser(
+            prog='createcar', usage='%(prog)s [options]')
+        parser.add_argument('--path', default=None,
+                            help='path where to create car folder')
+        parser.add_argument('--template', default=None,
+                            help='name of car template to use')
+        parser.add_argument('--overwrite', action='store_true',
+                            help='should replace existing files')
         parsed_args = parser.parse_args(args)
         return parsed_args
 
     def run(self, args):
         args = self.parse_args(args)
-        self.create_car(path=args.path, template=args.template, overwrite=args.overwrite)
+        self.create_car(path=args.path, template=args.template,
+                        overwrite=args.overwrite)
 
     def create_car(self, path, template='complete', overwrite=False):
         """
@@ -84,7 +116,8 @@ class CreateCar(BaseCommand):
 
         # add car application and config files if they don't exist
         app_template_path = os.path.join(TEMPLATES_PATH, template+'.py')
-        config_template_path = os.path.join(TEMPLATES_PATH, 'cfg_' + template + '.py')
+        config_template_path = os.path.join(
+            TEMPLATES_PATH, 'cfg_' + template + '.py')
         myconfig_template_path = os.path.join(TEMPLATES_PATH, 'myconfig.py')
         train_template_path = os.path.join(TEMPLATES_PATH, 'train.py')
         calibrate_template_path = os.path.join(TEMPLATES_PATH, 'calibrate.py')
@@ -146,8 +179,10 @@ class UpdateCar(BaseCommand):
     '''
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='update', usage='%(prog)s [options]')
-        parser.add_argument('--template', default=None, help='name of car template to use')
+        parser = argparse.ArgumentParser(
+            prog='update', usage='%(prog)s [options]')
+        parser.add_argument('--template', default=None,
+                            help='name of car template to use')
         parsed_args = parser.parse_args(args)
         return parsed_args
 
@@ -170,8 +205,10 @@ class FindCar(BaseCommand):
         s.close()
 
         print("Finding your car's IP address...")
-        cmd = "sudo nmap -sP " + ip + "/24 | awk '/^Nmap/{ip=$NF}/B8:27:EB/{print ip}'"
-        cmdRPi4 = "sudo nmap -sP " + ip + "/24 | awk '/^Nmap/{ip=$NF}/DC:A6:32/{print ip}'"
+        cmd = "sudo nmap -sP " + ip + \
+            "/24 | awk '/^Nmap/{ip=$NF}/B8:27:EB/{print ip}'"
+        cmdRPi4 = "sudo nmap -sP " + ip + \
+            "/24 | awk '/^Nmap/{ip=$NF}/DC:A6:32/{print ip}'"
         print("Your car's ip address is:")
         os.system(cmd)
         os.system(cmdRPi4)
@@ -180,11 +217,13 @@ class FindCar(BaseCommand):
 class CalibrateCar(BaseCommand):
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='calibrate', usage='%(prog)s [options]')
+        parser = argparse.ArgumentParser(
+            prog='calibrate', usage='%(prog)s [options]')
         parser.add_argument(
             '--pwm-pin',
             help="The PwmPin specifier of pin to calibrate, like 'RPI_GPIO.BOARD.33' or 'PCA9685.1:40.13'")
-        parser.add_argument('--channel', default=None, help="The PCA9685 channel you'd like to calibrate [0-15]")
+        parser.add_argument('--channel', default=None,
+                            help="The PCA9685 channel you'd like to calibrate [0-15]")
         parser.add_argument(
             '--address',
             default='0x40',
@@ -193,7 +232,8 @@ class CalibrateCar(BaseCommand):
             '--bus',
             default=None,
             help="The i2c bus of PCA9685 you'd like to calibrate [default autodetect]")
-        parser.add_argument('--pwmFreq', default=60, help="The frequency to use for the PWM")
+        parser.add_argument('--pwmFreq', default=60,
+                            help="The frequency to use for the PWM")
         parser.add_argument(
             '--arduino',
             dest='arduino',
@@ -205,6 +245,10 @@ class CalibrateCar(BaseCommand):
 
     def run(self, args):
         args = self.parse_args(args)
+
+        # ensure controller variables are defined for linters/static analyzers
+        arduino_controller = None
+        c = None
 
         if args.arduino:
             from donkeycar.parts.actuator import ArduinoFirmata
@@ -243,10 +287,12 @@ class CalibrateCar(BaseCommand):
             if args.bus:
                 busnum = int(args.bus)
             address = int(args.address, 16)
-            print('init PCA9685 on channel %d address %s bus %s' % (channel, str(hex(address)), str(busnum)))
+            print('init PCA9685 on channel %d address %s bus %s' %
+                  (channel, str(hex(address)), str(busnum)))
             freq = int(args.pwmFreq)
             print(f"Using PWM freq: {freq}")
-            c = PCA9685(channel, address=address, busnum=busnum, frequency=freq)
+            c = PCA9685(channel, address=address,
+                        busnum=busnum, frequency=freq)
             input_prompt = "Enter a PWM setting to test ('q' for quit) (0-1500): "
             print()
 
@@ -272,6 +318,7 @@ class MakeMovieShell(BaseCommand):
     take the make movie args and then call make movie command
     with lazy imports
     '''
+
     def __init__(self):
         self.deg_to_rad = math.pi / 180.0
 
@@ -282,13 +329,20 @@ class MakeMovieShell(BaseCommand):
             '--out',
             default='tub_movie.mp4',
             help='The movie filename to create. default: tub_movie.mp4')
-        parser.add_argument('--config', default='./config.py', help=HELP_CONFIG)
-        parser.add_argument('--model', default=None, help='the model to use to show control outputs')
-        parser.add_argument('--type', default=None, required=False, help='the model type to load')
-        parser.add_argument('--salient', action="store_true", help='should we overlay salient map showing activations')
-        parser.add_argument('--start', type=int, default=0, help='first frame to process')
-        parser.add_argument('--end', type=int, default=-1, help='last frame to process')
-        parser.add_argument('--scale', type=int, default=2, help='make image frame output larger by X mult')
+        parser.add_argument(
+            '--config', default='./config.py', help=HELP_CONFIG)
+        parser.add_argument('--model', default=None,
+                            help='the model to use to show control outputs')
+        parser.add_argument('--type', default=None,
+                            required=False, help='the model type to load')
+        parser.add_argument('--salient', action="store_true",
+                            help='should we overlay salient map showing activations')
+        parser.add_argument('--start', type=int, default=0,
+                            help='first frame to process')
+        parser.add_argument('--end', type=int, default=-1,
+                            help='last frame to process')
+        parser.add_argument('--scale', type=int, default=2,
+                            help='make image frame output larger by X mult')
         parser.add_argument(
             '--draw-user-input',
             default=True, action='store_false',
@@ -312,6 +366,7 @@ class MakeMovieShell(BaseCommand):
 class ShowHistogram(BaseCommand):
 
     def parse_args(self, args):
+        ''' Parse the command line arguments.'''
         parser = argparse.ArgumentParser(prog='tubhist',
                                          usage='%(prog)s [options]')
         parser.add_argument('--tub', nargs='+', help='paths to tubs')
@@ -326,8 +381,14 @@ class ShowHistogram(BaseCommand):
         """
         Produce a histogram of record type frequency in the given tub
         """
-        import pandas as pd
-        from matplotlib import pyplot as plt
+        # Ensure matplotlib is available before attempting any plotting.
+        try:
+            import pandas as pd
+            from matplotlib import pyplot as plt
+        except ImportError:
+            logger.error(
+                "matplotlib is not available; install matplotlib to use the 'tubhist' command.")
+            return
         from donkeycar.parts.tub_v2 import Tub
 
         output = out or os.path.basename(tub_paths)
@@ -351,7 +412,7 @@ class ShowHistogram(BaseCommand):
                 else:
                     filename = f"{output}_hist.png"
             plt.savefig(filename)
-            logger.info(f'saving image to: {filename}')
+            logger.info('saving image to: %s', filename)
         except Exception as e:
             logger.error(str(e))
         plt.show()
@@ -366,6 +427,12 @@ class ShowHistogram(BaseCommand):
 class ShowCnnActivations(BaseCommand):
 
     def __init__(self):
+        import matplotlib
+        try:
+            matplotlib.use('Agg')
+        except Exception:
+            # If backend can't be set, continue and let matplotlib pick one
+            pass
         import matplotlib.pyplot as plt
         self.plt = plt
 
@@ -420,10 +487,12 @@ class ShowCnnActivations(BaseCommand):
         return conv_layers
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='cnnactivations', usage='%(prog)s [options]')
+        parser = argparse.ArgumentParser(
+            prog='cnnactivations', usage='%(prog)s [options]')
         parser.add_argument('--image', help='path to image')
         parser.add_argument('--model', default=None, help='path to model')
-        parser.add_argument('--config', default='./config.py', help=HELP_CONFIG)
+        parser.add_argument(
+            '--config', default='./config.py', help=HELP_CONFIG)
 
         parsed_args = parser.parse_args(args)
         return parsed_args
@@ -498,19 +567,24 @@ class ShowPredictionPlots(BaseCommand):
         ax1.legend(loc=4)
         ax2.legend(loc=4)
         plt.savefig(model_path + '_pred.png')
-        logger.info(f'Saving tubplot at {model_path}_pred.png')
+        logger.info('Saving tubplot at %s_pred.png', model_path)
         if not noshow:
             plt.show()
 
     def parse_args(self, args):
-        parser = argparse.ArgumentParser(prog='tubplot', usage='%(prog)s [options]')
-        parser.add_argument('--tub', nargs='+', help='The tub to make plot from')
-        parser.add_argument('--model', default=None, help='model for predictions')
-        parser.add_argument('--limit', type=int, default=1000, help='how many records to process')
+        parser = argparse.ArgumentParser(
+            prog='tubplot', usage='%(prog)s [options]')
+        parser.add_argument('--tub', nargs='+',
+                            help='The tub to make plot from')
+        parser.add_argument('--model', default=None,
+                            help='model for predictions')
+        parser.add_argument('--limit', type=int, default=1000,
+                            help='how many records to process')
         parser.add_argument('--type', default=None, help='model type')
         parser.add_argument('--noshow', default=False, action="store_true",
                             help='if plot is shown in window')
-        parser.add_argument('--config', default='./config.py', help=HELP_CONFIG)
+        parser.add_argument(
+            '--config', default='./config.py', help=HELP_CONFIG)
 
         parsed_args = parser.parse_args(args)
         return parsed_args
@@ -528,11 +602,13 @@ class Train(BaseCommand):
     def parse_args(self, args):
         HELP_FRAMEWORK = 'the AI framework to use (tensorflow|pytorch). ' \
                          'Defaults to config.DEFAULT_AI_FRAMEWORK'
-        parser = argparse.ArgumentParser(prog='train', usage='%(prog)s [options]')
+        parser = argparse.ArgumentParser(
+            prog='train', usage='%(prog)s [options]')
         parser.add_argument('--tub', nargs='+', help='tub data for training')
         parser.add_argument('--model', default=None, help='output model name')
         parser.add_argument('--type', default=None, help='model type')
-        parser.add_argument('--config', default='./config.py', help=HELP_CONFIG)
+        parser.add_argument(
+            '--config', default='./config.py', help=HELP_CONFIG)
         parser.add_argument('--myconfig', default='./myconfig.py',
                             help='file name of myconfig file, defaults to '
                                  'myconfig.py')
@@ -566,8 +642,8 @@ class Train(BaseCommand):
             train(cfg, args.tub, args.model, args.type,
                   checkpoint_path=args.checkpoint)
         else:
-            logger.error(f"Unrecognized framework: {framework}. Please specify "
-                         f"one of 'tensorflow' or 'pytorch'")
+            logger.error("Unrecognized framework: %s. Please specify "
+                         "one of 'tensorflow' or 'pytorch'", framework)
 
 
 class ModelDatabase(BaseCommand):
@@ -575,7 +651,8 @@ class ModelDatabase(BaseCommand):
     def parse_args(self, args):
         parser = argparse.ArgumentParser(prog='models',
                                          usage='%(prog)s [options]')
-        parser.add_argument('--config', default='./config.py', help=HELP_CONFIG)
+        parser.add_argument(
+            '--config', default='./config.py', help=HELP_CONFIG)
         parser.add_argument('--group', action="store_true",
                             default=False,
                             help='group tubs and plot separately')

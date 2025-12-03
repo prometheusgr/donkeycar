@@ -1,28 +1,53 @@
+'''
+Docstring for donkeycar.
+'''
 import os
 import sys
-from pyfiglet import Figlet
-import logging
+import importlib
+from typing import TYPE_CHECKING
+"""Donkeycar package.
 
-__version__ = '5.2.dev5'
+Keep this module lightweight: avoid heavy imports or printing at
+import time so tests and static analysis can import the package
+without side effects.
+"""
 
-logging.basicConfig(level=os.environ.get('LOGLEVEL', 'INFO').upper())
+__version__ = "5.2.dev5"
+__all__ = ["Vehicle", "load_config", "Config"]
 
-f = Figlet(font='speed')
+if TYPE_CHECKING:
+    # Expose names to type checkers and linters without importing heavy modules.
+    from .vehicle import Vehicle  # noqa: F401
+    from .config import load_config, Config  # noqa: F401
 
 
-print(f.renderText('Donkey Car'))
-print(f'using donkey v{__version__} ...')
+def __getattr__(name: str):
+    """Lazily import and expose commonly used attributes.
 
-if sys.version_info.major < 3 or sys.version_info.minor < 11:
-    msg = f'Donkey Requires Python 3.11 or greater. You are using {sys.version}'
-    raise ValueError(msg)
+    This keeps the package import lightweight while preserving the
+    public API expected by tests and external callers.
+    """
+    if name == "Vehicle":
+        from .vehicle import Vehicle
 
-# The default recursion limits in CPython are too small.
-sys.setrecursionlimit(10**5)
+        return Vehicle
 
-from .vehicle import Vehicle
-from .memory import Memory
-from . import utils
-from . import config
-from . import contrib
-from .config import load_config
+    if name == "load_config":
+        from .config import load_config
+
+        return load_config
+
+    if name == "Config":
+        from .config import Config
+
+        return Config
+
+    # As a convenience, allow lazy access to submodules like `donkeycar.vehicle`
+    # by importing and returning the submodule when requested.
+    try:
+        return importlib.import_module(f"{__name__}.{name}")
+    except ImportError:
+        # Module not available; fall through to raising AttributeError
+        pass
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

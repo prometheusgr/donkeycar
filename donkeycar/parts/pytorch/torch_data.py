@@ -10,6 +10,27 @@ from donkeycar.pipeline.sequence import TubSequence
 import pytorch_lightning as pl
 
 
+# Picklable callable transforms used by TorchTubDataset pipeline. These
+# are defined at module scope so they can be pickled when worker processes
+# are spawned (Windows multiprocessing uses spawn and requires top-level
+# callables).
+class _YTransform:
+    def __call__(self, record: TubRecord):
+        angle: float = record.underlying['user/angle']
+        throttle: float = record.underlying['user/throttle']
+        preds = torch.tensor([angle, throttle], dtype=torch.float)
+        return (preds + 1) / 2
+
+
+class _XTransform:
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, record: TubRecord):
+        img_arr = record.image(as_nparray=False)
+        return self.transform(img_arr)
+
+
 def get_default_transform(for_video=False, for_inference=False, resize=True):
     """
     Creates a default transform to work with torchvision models
@@ -71,25 +92,11 @@ class TorchTubDataset(IterableDataset):
     def _create_pipeline(self):
         """ This can be overridden if more complicated pipelines are
             required """
-
-        def y_transform(record: TubRecord):
-            angle: float = record.underlying['user/angle']
-            throttle: float = record.underlying['user/throttle']
-            predictions = torch.tensor([angle, throttle], dtype=torch.float)
-
-            # Normalize to be between [0, 1]
-            # angle and throttle are originally between [-1, 1]
-            predictions = (predictions + 1) / 2
-            return predictions
-
-        def x_transform(record: TubRecord):
-            # Loads the result of Image.open()
-            img_arr = record.image(as_nparray=False)
-            return self.transform(img_arr)
-
-        # Build pipeline using the transformations
-        pipeline = self.sequence.build_pipeline(x_transform=x_transform,
-                                                y_transform=y_transform)
+        # Build pipeline using picklable callable objects defined at module
+        # scope. This avoids "Can't pickle local object" errors when the
+        # dataloader starts worker processes on Windows (spawn start method).
+        pipeline = self.sequence.build_pipeline(x_transform=_XTransform(self.transform),
+                                                y_transform=_YTransform())
         return pipeline
 
     def __len__(self):

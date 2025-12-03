@@ -16,7 +16,7 @@ from docopt import docopt
 
 import donkeycar as dk
 
-#import parts
+# import parts
 from donkeycar.parts.controller import LocalWebController, \
     JoystickController, WebFpv
 from donkeycar.parts.throttle_filter import ThrottleFilter
@@ -25,7 +25,8 @@ from donkeycar.utils import *
 
 from socket import gethostname
 
-def drive(cfg ):
+
+def drive(cfg):
     '''
     Construct a working robotic vehicle from many parts.
     Each part runs as a job in the Vehicle loop, calling either
@@ -36,8 +37,8 @@ def drive(cfg ):
     to parts requesting the same named input.
     '''
 
-    #Initialize car
-    V = dk.vehicle.Vehicle()
+    # Initialize car
+    V = dk.Vehicle()
 
     ctr = LocalWebController(port=cfg.WEB_CONTROL_PORT)
     V.add(ctr,
@@ -45,13 +46,13 @@ def drive(cfg ):
           outputs=['angle', 'throttle', 'user/mode', 'recording'],
           threaded=True)
 
-    #this throttle filter will allow one tap back for esc reverse
+    # this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
     V.add(th_filter, inputs=['throttle'], outputs=['throttle'])
 
     drive_train = None
 
-    #Drive train setup
+    # Drive train setup
     if cfg.DONKEY_GYM or cfg.DRIVE_TRAIN_TYPE == "MOCK":
         pass
 

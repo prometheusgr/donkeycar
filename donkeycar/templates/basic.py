@@ -38,12 +38,13 @@ class DriveMode:
             return pilot_angle if pilot_angle else 0.0, user_throttle
         else:
             return pilot_angle if pilot_angle else 0.0, \
-                   pilot_throttle * self.cfg.AI_THROTTLE_MULT if \
-                       pilot_throttle else 0.0
+                pilot_throttle * self.cfg.AI_THROTTLE_MULT if \
+                pilot_throttle else 0.0
 
 
 class PilotCondition:
     """ Helper class to determine who is in charge of driving"""
+
     def run(self, mode):
         return mode != 'user'
 
@@ -61,11 +62,11 @@ def drive(cfg, model_path=None, model_type=None):
     passing named outputs to parts requesting the same named input.
     """
     logger.info(f'PID: {os.getpid()}')
-    car = dk.vehicle.Vehicle()
+    car = dk.Vehicle()
     # add camera
     inputs = []
     if cfg.DONKEY_GYM:
-        from donkeycar.parts.dgym import DonkeyGymEnv 
+        from donkeycar.parts.dgym import DonkeyGymEnv
         cam = DonkeyGymEnv(cfg.DONKEY_SIM_PATH, host=cfg.SIM_HOST,
                            env_name=cfg.DONKEY_GYM_ENV_NAME, conf=cfg.GYM_CONF,
                            delay=cfg.SIM_ARTIFICIAL_LATENCY)
@@ -213,7 +214,7 @@ def calibrate(cfg):
     third channel on the remote we can use it for wiping bad data while
     recording, so we print its values here, too.
     """
-    donkey_car = dk.vehicle.Vehicle()
+    donkey_car = dk.Vehicle()
 
     # create the RC receiver
     rc_steering = RCReceiver(cfg.STEERING_RC_GPIO, invert=True)

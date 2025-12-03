@@ -5,8 +5,8 @@ Date: Nov 11, 2014
 '''
 from .la import Vec2
 
-class LineSeg2d(object):
 
+class LineSeg2d:
     def __init__(self, x1, y1, x2, y2):
         a = Vec2(x1, y1)
         b = Vec2(x2, y2)
@@ -34,4 +34,3 @@ class LineSeg2d(object):
         if err_vec.cross(self.ray) < 0.0:
             sign = -1.
         return mag * sign
-

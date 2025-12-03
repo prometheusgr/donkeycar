@@ -30,7 +30,7 @@ def test_createcar(cardir):
 
 
 def test_drivesim(cardir):
-    cmd = ['donkey', 'createcar', '--path', cardir ,'--template', 'square']
+    cmd = ['donkey', 'createcar', '--path', cardir, '--template', 'square']
     out, err, proc_id = utils.run_shell_command(cmd, timeout=10)
     cmd = ['python', 'manage.py', 'drive']
     out, err, proc_id = utils.run_shell_command(cmd, cwd=cardir)
@@ -72,12 +72,15 @@ def test_tubplot(cardir):
     cmd = ['donkey', 'tubplot', '--tub', tub_dir, '--model', model_path,
            '--type', 'linear', '--noshow']
 
-    # run donkey command in subprocess
-    with subprocess.Popen(cmd, cwd=cardir, stdout=subprocess.PIPE) as pipe:
-        line = '\nStart test: \n'
-        while line:
-            print(line, end='')
-            line = pipe.stdout.readline().decode()
+    # run donkey command in subprocess (use utils helper for portability)
+    out, err, proc_id = utils.run_shell_command(cmd, cwd=cardir)
+    for l in out:
+        print(l, end='')
+    for e in err:
+        try:
+            print(e.decode(), end='')
+        except Exception:
+            print(e, end='')
+
     print(f'List model dir: {os.listdir(model_dir)}')
     assert os.path.exists(model_path + '_pred.png')
-
