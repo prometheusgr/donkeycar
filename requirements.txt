@@ -1,0 +1,19 @@
+# requirements.txt generated from setup.cfg `install_requires`
+# Generated on 2025-12-03
+
+numpy
+pillow
+docopt
+tornado
+requests
+PrettyTable
+paho-mqtt
+simple_pid
+progress
+pyfiglet
+psutil
+pynmea2
+pyserial
+utm
+pandas
+pyyaml

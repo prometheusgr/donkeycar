@@ -1,0 +1,7 @@
+# requirements for development
+# Generated from `setup.cfg` extras_require[dev]
+
+pytest
+pytest-cov
+responses
+mypy

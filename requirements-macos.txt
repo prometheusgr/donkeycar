@@ -1,0 +1,11 @@
+# requirements for macOS extras
+# Generated from `setup.cfg` extras_require[macos]
+
+tensorflow==2.15.*
+tensorflow-metal
+matplotlib
+kivy
+kivy-garden.matplotlib
+pandas
+plotly
+albumentations
