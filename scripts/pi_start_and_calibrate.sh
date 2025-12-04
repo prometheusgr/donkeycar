@@ -139,6 +139,14 @@ if [ "$CALIBRATE" -eq 1 ]; then
   # Change into the car directory for running the car-specific calibrator
   cd "$CAR_DIR"
 
+  # If this repo contains the top-level `donkeycar` package, add the repo root
+  # to PYTHONPATH so that `python3 manage.py` or `python3 mycar/calibrate.py`
+  # can import the package even when run from inside the `mycar` folder.
+  if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/donkeycar" ]; then
+    export PYTHONPATH="$REPO_ROOT${PYTHONPATH+:$PYTHONPATH}"
+    info "Added $REPO_ROOT to PYTHONPATH"
+  fi
+
   # Prefer generated mycar/calibrate.py (created by templates), else try manage.py calibrate
   if [ -f "mycar/calibrate.py" ]; then
     python3 mycar/calibrate.py drive

@@ -174,6 +174,7 @@ bash scripts/pi_start_and_calibrate.sh --calibrate --path /home/pi/mycar
 ```
 
 - If you omit `--path` the script will try a few sensible defaults (the repo `mycar/` folder, a repo root with `manage.py`, etc.). If no car directory is found the script will interactively prompt you to:
+
   - enter a path to an existing car directory, or
   - create a new car directory.
 
@@ -200,5 +201,6 @@ bash scripts/pi_start_and_calibrate.sh --calibrate --path /home/pi/newcar
 ```
 
 Notes:
+
 - The interactive create flow requires the repo `.venv` to exist so the create helper can run inside the virtualenv. If you created the venv under a different name or location, either activate it first or pass `--venv /path/to/venv` to the helper.
 - If you'd like, I can add an example `systemd` unit snippet and an automated `install-service.sh` script to `scripts/` to make deploying the unit easier.
