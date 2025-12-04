@@ -6,11 +6,21 @@ IFS=$'\n\t'
 # Usage: sudo bash scripts/donkey_cli.sh  (sudo only required for apt installs)
 
 DEFAULT_GIT_URL="https://github.com/prometheusgr/donkeycar.git"
-REPO_DIR="$HOME/donkeycar"
+# If the script is run with sudo, prefer the invoking user's home directory
+# (SUDO_USER) so we don't default to /root. Fall back to $HOME when absent.
+if [ -n "${SUDO_USER-}" ]; then
+  USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)
+  # fallback if getent failed for some reason
+  USER_HOME=${USER_HOME:-"/home/$SUDO_USER"}
+else
+  USER_HOME="$HOME"
+fi
+REPO_DIR="$USER_HOME/donkeycar"
 VENV_DIR=".venv"
+LOGFILE="${USER_HOME}/donkey_cli_install.log"
 
-info(){ printf "[INFO] %s\n" "$*"; }
-err(){ printf "[ERROR] %s\n" "$*" >&2; }
+info(){ printf "[INFO] %s\n" "$*"; printf "%s [INFO] %s\n" "$(date --iso-8601=seconds)" "$*" >> "$LOGFILE"; }
+err(){ printf "[ERROR] %s\n" "$*" >&2; printf "%s [ERROR] %s\n" "$(date --iso-8601=seconds)" "$*" >> "$LOGFILE"; }
 
 ask_yes_no(){
   local prompt="$1" default="$2"
@@ -35,11 +45,12 @@ ensure_sudo(){
   fi
 }
 
+
 install_prereqs(){
   info "Installing Debian prerequisites (apt packages)"
   ensure_sudo
-  $SUDO apt update
-  $SUDO apt install -y git python3 python3-venv python3-pip build-essential libjpeg-dev ffmpeg || {
+  $SUDO apt update >> "$LOGFILE" 2>&1
+  $SUDO apt install -y git python3 python3-venv python3-pip build-essential libjpeg-dev ffmpeg >> "$LOGFILE" 2>&1 || {
     err "apt install failed. Check your network or package sources."; return 1
   }
   info "Prerequisite packages installed."
@@ -63,8 +74,15 @@ ensure_python_version(){
 
   if [ "$PY_MAJOR" -gt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 11 ]; }; then
     info "Found python $PY_VER"
-    PYTHON_BIN=python3
-    return 0
+    # Ask user whether to use system python or force-install 3.11 (useful when system has newer like 3.13)
+    if ask_yes_no "Use system Python $PY_VER instead of installing Python 3.11? [Y/n]: " "Y"; then
+      PYTHON_BIN=python3
+      return 0
+    else
+      info "User requested forcing Python 3.11 install (via pyenv)."
+      install_pyenv_python311 || { err "Failed to install Python 3.11 via pyenv"; return 1; }
+      return 0
+    fi
   fi
 
   info "Detected python3 version $PY_VER which is older than required (>=3.11)."
@@ -72,14 +90,28 @@ ensure_python_version(){
   if [ -f /etc/os-release ] && grep -qiE 'debian' /etc/os-release; then
     if ask_yes_no "Attempt to install Python 3.11 from apt now? [y/N]: " "N"; then
       ensure_sudo
-      $SUDO apt update
+      $SUDO apt update >> "$LOGFILE" 2>&1
+      # Show candidate version and ask for explicit confirmation before install
+      CANDIDATE_VER=$(apt-cache policy python3.11 2>/dev/null | awk '/Candidate:/ {print $2}' || true)
+      if [ -n "$CANDIDATE_VER" ]; then
+        if ! ask_yes_no "Found candidate python3.11 version: ${CANDIDATE_VER}. Install it now? [y/N]: " "N"; then
+          err "User declined installation of python3.11 from apt.";
+          return 1
+        fi
+      else
+        info "No candidate package version for python3.11 found in apt metadata. Will attempt install anyway."
+      fi
       # Try to install python3.11 packages from the distro repositories
-      if $SUDO apt install -y python3.11 python3.11-venv python3.11-distutils 2>/dev/null; then
+      if $SUDO apt install -y python3.11 python3.11-venv python3.11-distutils >> "$LOGFILE" 2>&1; then
         PYTHON_BIN=python3.11
         info "Installed python3.11 and will use $PYTHON_BIN for venv creation."
         return 0
       else
         err "apt could not install python3.11 from the repositories."
+        if ask_yes_no "Install Python 3.11 via pyenv (will build from source; may take long)? [y/N]: " "N"; then
+          install_pyenv_python311 || { err "pyenv-based install failed"; return 1; }
+          return 0
+        fi
         err "You can install Python 3.11 using pyenv or by adding an appropriate repository."
         return 1
       fi
@@ -93,14 +125,32 @@ ensure_python_version(){
   if [ -f /etc/os-release ] && grep -qiE 'ubuntu' /etc/os-release; then
     if ask_yes_no "Install Python 3.11 via deadsnakes PPA now? [y/N]: " "N"; then
       ensure_sudo
-      $SUDO apt update
-      $SUDO apt install -y software-properties-common || { err "failed to install prerequisites for add-apt-repository"; return 1; }
-      $SUDO add-apt-repository -y ppa:deadsnakes/ppa || { err "adding deadsnakes PPA failed"; return 1; }
-      $SUDO apt update
-      $SUDO apt install -y python3.11 python3.11-venv python3.11-distutils || { err "Failed to install python3.11"; return 1; }
-      PYTHON_BIN=python3.11
-      info "Installed python3.11 and will use $PYTHON_BIN for venv creation."
-      return 0
+      $SUDO apt update >> "$LOGFILE" 2>&1
+      $SUDO apt install -y software-properties-common >> "$LOGFILE" 2>&1 || { err "failed to install prerequisites for add-apt-repository"; return 1; }
+      $SUDO add-apt-repository -y ppa:deadsnakes/ppa >> "$LOGFILE" 2>&1 || { err "adding deadsnakes PPA failed"; return 1; }
+      $SUDO apt update >> "$LOGFILE" 2>&1
+      # Show candidate version and ask for explicit confirmation before install
+      CANDIDATE_VER=$(apt-cache policy python3.11 2>/dev/null | awk '/Candidate:/ {print $2}' || true)
+      if [ -n "$CANDIDATE_VER" ]; then
+        if ! ask_yes_no "Found candidate python3.11 version: ${CANDIDATE_VER}. Install it now? [y/N]: " "N"; then
+          err "User declined installation of python3.11 from apt.";
+          return 1
+        fi
+      else
+        info "No candidate package version for python3.11 found in apt metadata. Will attempt install anyway."
+      fi
+      if $SUDO apt install -y python3.11 python3.11-venv python3.11-distutils >> "$LOGFILE" 2>&1; then
+        PYTHON_BIN=python3.11
+        info "Installed python3.11 and will use $PYTHON_BIN for venv creation."
+        return 0
+      else
+        err "Failed to install python3.11 via apt/deadsnakes."
+        if ask_yes_no "Install Python 3.11 via pyenv (will build from source; may take long)? [y/N]: " "N"; then
+          install_pyenv_python311 || { err "pyenv-based install failed"; return 1; }
+          return 0
+        fi
+        return 1
+      fi
     else
       err "Python 3.11 is required. Install it manually (pyenv/conda or system packages) and re-run.";
       return 1
@@ -109,6 +159,81 @@ ensure_python_version(){
 
   err "Automatic install not supported on this OS. Please install Python 3.11+ and re-run.";
   return 1
+}
+
+
+# Install pyenv in the invoking user's homedir (if necessary) and build Python 3.11
+install_pyenv_python311(){
+  info "Installing Python 3.11 via pyenv (this will build from source)."
+  # Install system build deps
+  ensure_sudo
+  info "Installing build dependencies for pyenv/python build"
+  $SUDO apt update >> "$LOGFILE" 2>&1
+  $SUDO apt install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncursesw5-dev xz-utils \
+    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev >> "$LOGFILE" 2>&1 || {
+    err "Failed to install build dependencies via apt"; return 1
+  }
+
+  # Determine user to install pyenv for (when run via sudo prefer SUDO_USER)
+  if [ -n "${SUDO_USER-}" ]; then
+    PYENV_USER="$SUDO_USER"
+    PYENV_HOME=$(getent passwd "$PYENV_USER" | cut -d: -f6 || true)
+    PYENV_HOME=${PYENV_HOME:-"/home/$PYENV_USER"}
+  else
+    PYENV_USER="$USER"
+    PYENV_HOME="$HOME"
+  fi
+
+  PYENV_ROOT="$PYENV_HOME/.pyenv"
+
+  # Clone pyenv if needed
+    if [ ! -d "$PYENV_ROOT" ]; then
+    info "Cloning pyenv into $PYENV_ROOT"
+    if [ -n "${SUDO_USER-}" ]; then
+      sudo -u "$PYENV_USER" -H git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT" >> "$LOGFILE" 2>&1 || { err "git clone pyenv failed"; return 1; }
+    else
+      git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT" >> "$LOGFILE" 2>&1 || { err "git clone pyenv failed"; return 1; }
+    fi
+  else
+    info "pyenv already present at $PYENV_ROOT"
+  fi
+
+  # Prefer calling the pyenv binary directly from the cloned location
+  PYENV_BIN="$PYENV_ROOT/bin/pyenv"
+  # Find latest 3.11.x available to pyenv
+  if [ -n "${SUDO_USER-}" ]; then
+    LATEST_311=$(sudo -u "$PYENV_USER" -H "$PYENV_BIN" install --list 2>>"$LOGFILE" | grep -E '^\s*3\.11' | tail -1 | tr -d '[:space:]' || true)
+    if [ -z "$LATEST_311" ]; then
+      # Try calling pyenv directly as the user (fallback)
+      LATEST_311=$(sudo -u "$PYENV_USER" -H bash -lc "'$PYENV_BIN' install --list 2>>\"$LOGFILE\" | grep -E '^\\s*3\\.11' | tail -1 | tr -d '[:space:]'" || true)
+    fi
+  else
+    LATEST_311=$($PYENV_BIN install --list 2>>"$LOGFILE" | grep -E '^\s*3\.11' | tail -1 | tr -d '[:space:]' || true)
+  fi
+
+  if [ -z "$LATEST_311" ]; then
+    info "Could not determine latest 3.11 release from pyenv. Defaulting to '3.11.0'."
+    LATEST_311="3.11.0"
+  fi
+
+  info "Installing Python $LATEST_311 via pyenv (this may take a long time)"
+  if [ -n "${SUDO_USER-}" ]; then
+    sudo -u "$PYENV_USER" -H "$PYENV_BIN" install -s "$LATEST_311" >> "$LOGFILE" 2>&1 || { err "pyenv install failed (see $LOGFILE)"; return 1; }
+    sudo -u "$PYENV_USER" -H "$PYENV_BIN" global "$LATEST_311" >> "$LOGFILE" 2>&1 || { err "pyenv global failed (see $LOGFILE)"; return 1; }
+  else
+    "$PYENV_BIN" install -s "$LATEST_311" >> "$LOGFILE" 2>&1 || { err "pyenv install failed (see $LOGFILE)"; return 1; }
+    "$PYENV_BIN" global "$LATEST_311" >> "$LOGFILE" 2>&1 || { err "pyenv global failed (see $LOGFILE)"; return 1; }
+  fi
+
+  # Set PYTHON_BIN to the installed python3.11
+  PYTHON_BIN="$PYENV_ROOT/versions/$LATEST_311/bin/python3.11"
+  if [ ! -x "$PYTHON_BIN" ]; then
+    err "Expected python binary not found at $PYTHON_BIN"
+    return 1
+  fi
+  info "Installed Python $LATEST_311 via pyenv; using $PYTHON_BIN"
+  return 0
 }
 
 clone_repo(){
@@ -128,6 +253,23 @@ clone_repo(){
 }
 
 create_venv_and_install(){
+  # Ensure the repository directory exists. If not, offer to clone it now.
+  if [ ! -d "$REPO_DIR" ]; then
+    info "Repository directory $REPO_DIR not found."
+    if ask_yes_no "Clone repository now into $REPO_DIR? [y/N]: " "N"; then
+      clone_repo || { err "Clone failed"; return 1; }
+    else
+      read -r -p "Enter an existing repository path to use (or leave empty to abort): " NEW_REPO
+      if [ -z "$NEW_REPO" ]; then
+        err "No repository available; aborting venv creation."; return 1
+      fi
+      if [ -d "$NEW_REPO" ]; then
+        REPO_DIR="$NEW_REPO"
+      else
+        err "Provided path does not exist: $NEW_REPO"; return 1
+      fi
+    fi
+  fi
   cd "$REPO_DIR"
   # Ensure system-level prerequisites are installed before creating venv
   install_prereqs || { err "Failed to install system prerequisites"; return 1; }
@@ -135,12 +277,37 @@ create_venv_and_install(){
   # Ensure we have a suitable python interpreter (may install python3.11 on Debian/Ubuntu)
   PYTHON_BIN=python3
   ensure_python_version || return 1
-
-  if [ ! -d "$VENV_DIR" ]; then
+  # If a venv already exists, check its python version. If it doesn't match
+  # the requested PYTHON_BIN, offer to recreate it so the correct interpreter
+  # is used (important for packages that require specific Python versions).
+  if [ -d "$VENV_DIR" ]; then
+    VENV_PY="$VENV_DIR/bin/python3"
+    if [ ! -x "$VENV_PY" ]; then
+      VENV_PY="$VENV_DIR/bin/python"
+    fi
+    if [ -x "$VENV_PY" ]; then
+      EXISTING_VER=$($VENV_PY -c 'import sys; print(f"%s.%s"%(sys.version_info.major, sys.version_info.minor))' 2>/dev/null || echo "0.0")
+    else
+      EXISTING_VER="none"
+    fi
+    # get requested python version
+    REQ_VER=$($PYTHON_BIN -c 'import sys; print(f"%s.%s"%(sys.version_info.major, sys.version_info.minor))' 2>/dev/null || echo "0.0")
+    if [ "$EXISTING_VER" != "$REQ_VER" ]; then
+      info "Existing virtualenv at $VENV_DIR uses Python $EXISTING_VER but requested interpreter is $REQ_VER"
+      if ask_yes_no "Remove and recreate virtualenv using Python $REQ_VER? [y/N]: " "N"; then
+        info "Removing existing virtualenv at $VENV_DIR"
+        rm -rf "$VENV_DIR" || { err "Failed to remove $VENV_DIR"; return 1; }
+        info "Creating virtual environment at $VENV_DIR using $PYTHON_BIN"
+        $PYTHON_BIN -m venv "$VENV_DIR"
+      else
+        info "Keeping existing virtualenv (packages will be installed into Python $EXISTING_VER)."
+      fi
+    else
+      info "Virtualenv already exists at $VENV_DIR and uses Python $EXISTING_VER"
+    fi
+  else
     info "Creating virtual environment at $VENV_DIR using $PYTHON_BIN"
     $PYTHON_BIN -m venv "$VENV_DIR"
-  else
-    info "Virtualenv already exists at $VENV_DIR"
   fi
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
