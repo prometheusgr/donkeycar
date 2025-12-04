@@ -50,7 +50,7 @@ install_prereqs(){
   info "Installing Debian prerequisites (apt packages)"
   ensure_sudo
   $SUDO apt update >> "$LOGFILE" 2>&1
-  $SUDO apt install -y git python3 python3-venv python3-pip build-essential libjpeg-dev ffmpeg >> "$LOGFILE" 2>&1 || {
+  $SUDO apt install -y git python3 python3-venv python3-pip python3-dev build-essential libjpeg-dev libcap-dev ffmpeg >> "$LOGFILE" 2>&1 || {
     err "apt install failed. Check your network or package sources."; return 1
   }
   info "Prerequisite packages installed."
@@ -171,7 +171,7 @@ install_pyenv_python311(){
   $SUDO apt update >> "$LOGFILE" 2>&1
   $SUDO apt install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget curl llvm libncursesw5-dev xz-utils \
-    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev >> "$LOGFILE" 2>&1 || {
+    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libcap-dev python3-dev >> "$LOGFILE" 2>&1 || {
     err "Failed to install build dependencies via apt"; return 1
   }
 
