@@ -461,7 +461,7 @@ def param_gen(params):
         yield dict(zip(params.keys(), p))
 
 
-def run_shell_command(cmd, cwd=None, timeout=15):
+def run_shell_command(cmd, cwd=None, timeout=60):
     # On Windows the console entry-point script name (e.g. 'donkey') may not be
     # available on PATH in the test environment. If the caller invoked the
     # project's console command by name, run it via the Python module entry
