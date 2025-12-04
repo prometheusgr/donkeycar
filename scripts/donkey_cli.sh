@@ -5,7 +5,7 @@ IFS=$'\n\t'
 # Simple interactive installer / launcher for DonkeyCar on a fresh Debian/Pi
 # Usage: sudo bash scripts/donkey_cli.sh  (sudo only required for apt installs)
 
-DEFAULT_GIT_URL="https://github.com/autorope/donkeycar.git"
+DEFAULT_GIT_URL="https://github.com/prometheusgr/donkeycar.git"
 REPO_DIR="$HOME/donkeycar"
 VENV_DIR=".venv"
 
@@ -45,8 +45,10 @@ install_prereqs(){
   info "Prerequisite packages installed."
 }
 
-# Ensure we have a suitable Python interpreter (>=3.11). On Debian/Ubuntu offer to
-# install python3.11 via the deadsnakes PPA when the system python is too old.
+# Ensure we have a suitable Python interpreter (>=3.11).
+# On Debian try installing `python3.11` from apt. On Ubuntu fall back to
+# deadsnakes PPA. If the package is not available, instruct the user to
+# install via pyenv or similar.
 ensure_python_version(){
   info "Checking python3 version"
   PY_VER="0.0"
@@ -66,8 +68,29 @@ ensure_python_version(){
   fi
 
   info "Detected python3 version $PY_VER which is older than required (>=3.11)."
-  # If Debian/Ubuntu, prompt to install python3.11 via deadsnakes
-  if [ -f /etc/os-release ] && grep -qiE 'debian|ubuntu' /etc/os-release; then
+  # Try to install python3.11 from apt on Debian systems
+  if [ -f /etc/os-release ] && grep -qiE 'debian' /etc/os-release; then
+    if ask_yes_no "Attempt to install Python 3.11 from apt now? [y/N]: " "N"; then
+      ensure_sudo
+      $SUDO apt update
+      # Try to install python3.11 packages from the distro repositories
+      if $SUDO apt install -y python3.11 python3.11-venv python3.11-distutils 2>/dev/null; then
+        PYTHON_BIN=python3.11
+        info "Installed python3.11 and will use $PYTHON_BIN for venv creation."
+        return 0
+      else
+        err "apt could not install python3.11 from the repositories."
+        err "You can install Python 3.11 using pyenv or by adding an appropriate repository."
+        return 1
+      fi
+    else
+      err "Python 3.11 is required. Install it manually (pyenv/conda or system packages) and re-run.";
+      return 1
+    fi
+  fi
+
+  # For Ubuntu use deadsnakes PPA as before
+  if [ -f /etc/os-release ] && grep -qiE 'ubuntu' /etc/os-release; then
     if ask_yes_no "Install Python 3.11 via deadsnakes PPA now? [y/N]: " "N"; then
       ensure_sudo
       $SUDO apt update
@@ -82,10 +105,10 @@ ensure_python_version(){
       err "Python 3.11 is required. Install it manually (pyenv/conda or system packages) and re-run.";
       return 1
     fi
-  else
-    err "Automatic install not supported on this OS. Please install Python 3.11+ and re-run.";
-    return 1
   fi
+
+  err "Automatic install not supported on this OS. Please install Python 3.11+ and re-run.";
+  return 1
 }
 
 clone_repo(){
@@ -210,6 +233,27 @@ launch_start(){
   bash scripts/pi_start_and_calibrate.sh --path "$REPO_DIR" --start
 }
 
+remove_venv(){
+  # Remove the virtualenv directory so the installer can start from step 3
+  local VENV_PATH="$REPO_DIR/$VENV_DIR"
+  read -r -p "Remove virtualenv at ${VENV_PATH}? [y/N]: " resp || resp="N"
+  resp=${resp:-N}
+  case "$resp" in
+    [yY]|[yY][eE][sS])
+      if [ -d "$VENV_PATH" ]; then
+        info "Removing virtualenv at $VENV_PATH"
+        rm -rf "$VENV_PATH" || { err "Failed to remove $VENV_PATH"; return 1; }
+        info "Removed virtualenv. You can now re-run option 3 to recreate it."
+      else
+        info "No virtualenv found at $VENV_PATH"
+      fi
+      ;;
+    *)
+      info "Aborted; virtualenv not removed."
+      ;;
+  esac
+}
+
 main_menu(){
   while true; do
     echo
@@ -222,6 +266,7 @@ main_menu(){
     echo "6) Create a new car"
     echo "7) Launch realtime calibrator"
     echo "8) Start car (service or background)"
+    echo "10) Remove virtualenv (.venv)"
     echo "9) Exit"
     read -r -p "Choose an option [1-9]: " CH
     case "$CH" in
@@ -233,6 +278,7 @@ main_menu(){
       6) create_car ;; 
       7) launch_calibrate ;; 
       8) launch_start ;; 
+      10) remove_venv ;; 
       9) info "Goodbye"; exit 0 ;; 
       *) echo "Invalid choice" ;;
     esac
