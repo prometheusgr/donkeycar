@@ -9,6 +9,7 @@ IFS=$'\n\t'
 
 SERVICE_NAME="donkeycar.service"
 VENV_DIR=".venv"
+CAR_DIR=""
 CALIBRATE=0
 START_SERVICE_IF_MISSING=0
 START_FOREGROUND=0
@@ -20,6 +21,7 @@ while [[ ${#} -gt 0 ]]; do
   case "$1" in
     --service) SERVICE_NAME="$2"; shift 2;;
     --venv) VENV_DIR="$2"; shift 2;;
+    --path|--car-dir) CAR_DIR="$2"; shift 2;;
     --calibrate) CALIBRATE=1; shift 1;;
       --start) START_SERVICE_IF_MISSING=1; shift 1;;
       --foreground) START_FOREGROUND=1; shift 1;;
@@ -47,12 +49,114 @@ fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 
+# Determine car directory. Priority: CLI --path, repo mycar, repo root if manage.py, else prompt.
+if [ -n "$CAR_DIR" ]; then
+  info "Using car directory from --path: $CAR_DIR"
+elif [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/mycar" ]; then
+  CAR_DIR="$REPO_ROOT/mycar"
+  info "Found car directory: $CAR_DIR"
+elif [ -f "manage.py" ]; then
+  CAR_DIR="$REPO_ROOT"
+  info "Using repository root as car directory: $CAR_DIR"
+else
+  # prompt the user with retries and a create option
+  while true; do
+    echo
+    echo "Enter car directory path (absolute or relative)."
+    echo "  - Press Enter to use current directory ($(pwd))."
+    echo "  - Type 'create' to create a new car directory now."
+    echo "  - Type 'q' to abort."
+    read -r -p "Car dir or action: " INPUT_DIR
+
+    if [ -z "$INPUT_DIR" ]; then
+      CAR_DIR="$(pwd)"
+    elif [ "$INPUT_DIR" = "q" ] || [ "$INPUT_DIR" = "Q" ]; then
+      err "Aborted by user."
+      exit 1
+    elif [ "$INPUT_DIR" = "create" ]; then
+      # prompt for new car path
+      read -r -p "Enter new car path to create (will be created): " NEW_DIR
+      if [ -z "$NEW_DIR" ]; then
+        echo "No path entered; returning to prompt."
+        continue
+      fi
+      # expand and make absolute
+      NEW_DIR=$(python3 - <<PY
+import os,sys
+p = sys.argv[1]
+print(os.path.abspath(os.path.expanduser(p)))
+PY
+      "$NEW_DIR")
+      echo "Creating new car at: $NEW_DIR"
+      # run the createcar command via module so script works even if entry script not on PATH
+      if python3 -m donkeycar.management.base createcar --path "$NEW_DIR"; then
+        CAR_DIR="$NEW_DIR"
+        echo "Created car at $CAR_DIR"
+        break
+      else
+        echo "Failed to create car at $NEW_DIR. Try another path or check permissions." >&2
+        continue
+      fi
+    else
+      # expand tilde and make absolute
+      CAR_DIR=$(python3 - <<PY
+import os,sys
+p = sys.argv[1]
+print(os.path.abspath(os.path.expanduser(p)))
+PY
+      "$INPUT_DIR")
+    fi
+
+    # Validate CAR_DIR exists
+    if [ -d "$CAR_DIR" ]; then
+      info "Using car directory: $CAR_DIR"
+      break
+    else
+      echo "Directory does not exist: $CAR_DIR"
+      read -r -p "Create this directory and a new car there? [y/N]: " CRE
+      case "$CRE" in
+        [yY]|[yY][eE][sS])
+          if python3 -m donkeycar.management.base createcar --path "$CAR_DIR"; then
+            echo "Created car at $CAR_DIR"
+            break
+          else
+            echo "Failed to create car at $CAR_DIR; try a different path or check permissions." >&2
+            continue
+          fi
+          ;;
+        *)
+          echo "Let's try again."
+          continue
+          ;;
+      esac
+    fi
+  done
+fi
+
 if [ "$CALIBRATE" -eq 1 ]; then
   info "Starting realtime calibration server (LocalWebController)."
   info "Open the URL printed below on a browser on the same network."
-  # Run the calibrate drive loop which hosts the /calibrate web UI
-  python3 mycar/calibrate.py drive
-  exit 0
+  # Change into the car directory for running the car-specific calibrator
+  cd "$CAR_DIR"
+
+  # Prefer generated mycar/calibrate.py (created by templates), else try manage.py calibrate
+  if [ -f "mycar/calibrate.py" ]; then
+    python3 mycar/calibrate.py drive
+    exit 0
+  elif [ -f "manage.py" ]; then
+    # try the manage.py calibrate command; fall back to drive if calibrate not available
+    if python3 manage.py calibrate; then
+      exit 0
+    else
+      info "'manage.py calibrate' failed or is unavailable; attempting 'manage.py drive'"
+      python3 manage.py drive
+      exit 0
+    fi
+  else
+    err "Could not find 'mycar/calibrate.py' or 'manage.py' in $CAR_DIR"
+    err "Either run this script from your repo root, pass --path <car_dir>, or create your car with 'donkey createcar --path <dir>'"
+    exit 3
+  fi
 fi
 
 # Helper to run the car directly when systemd unit is not available.

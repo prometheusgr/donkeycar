@@ -163,3 +163,42 @@ If you want, I can also:
 
 - Add a small utility that will write measured values directly into `mycar/myconfig.py` (optional and automated), or
 - Add a `systemd` service template under `scripts/` for `donkeycar.service` so it's easier to install.
+
+9. Using `--path` and creating a new car directory
+
+- The helper script `scripts/pi_start_and_calibrate.sh` now accepts `--path` (or `--car-dir`) to point to a specific car directory. Example:
+
+```bash
+# run the realtime calibrator for a car stored at /home/pi/mycar
+bash scripts/pi_start_and_calibrate.sh --calibrate --path /home/pi/mycar
+```
+
+- If you omit `--path` the script will try a few sensible defaults (the repo `mycar/` folder, a repo root with `manage.py`, etc.). If no car directory is found the script will interactively prompt you to:
+  - enter a path to an existing car directory, or
+  - create a new car directory.
+
+- To create a new car directory from the script prompt choose the `create` option when prompted. The script will run the DonkeyCar createcar helper under the venv, equivalent to:
+
+```bash
+python3 -m donkeycar.management.base createcar --path /home/pi/newcar
+```
+
+- If you prefer to create the car yourself first, run the above command manually and then re-run the helper with `--path` pointing at the new directory.
+
+- Summary examples:
+
+```bash
+# interactive prompt (the script will ask for path or offer to create)
+bash scripts/pi_start_and_calibrate.sh --calibrate
+
+# non-interactive: point directly at a car directory
+bash scripts/pi_start_and_calibrate.sh --calibrate --path /home/pi/mycar
+
+# create a new car manually, then start calibrator
+python3 -m donkeycar.management.base createcar --path /home/pi/newcar
+bash scripts/pi_start_and_calibrate.sh --calibrate --path /home/pi/newcar
+```
+
+Notes:
+- The interactive create flow requires the repo `.venv` to exist so the create helper can run inside the virtualenv. If you created the venv under a different name or location, either activate it first or pass `--venv /path/to/venv` to the helper.
+- If you'd like, I can add an example `systemd` unit snippet and an automated `install-service.sh` script to `scripts/` to make deploying the unit easier.
