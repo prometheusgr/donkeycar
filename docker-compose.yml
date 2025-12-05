@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: donkeycar:dev
+    # Mount the repo so edits are available immediately
+    volumes:
+      - ./:/app
+    ports:
+      - "8888:8888" # jupyterlab
+      - "8887:8887" # donkeycar
+    environment:
+      # Provide token or set allow insecure in .env
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN:-}
+      - JUPYTER_ALLOW_INSECURE=${JUPYTER_ALLOW_INSECURE:-0}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

@@ -4,7 +4,7 @@ data/*
 dist/*
 
 *.pyc
-.ipynb_checkpoints
+.ipynb_checkpoints/
 *.egg-info/
 .git.bfg-report
 .DS_Store
@@ -27,3 +27,4 @@ htmlcov/
 # PyTorch
 lightning_logs
 tb_logs
+.env

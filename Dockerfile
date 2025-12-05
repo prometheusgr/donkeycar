@@ -1,29 +1,52 @@
-FROM python:3.6
+FROM python:3.11-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1 \
+	PIP_NO_CACHE_DIR=1 \
+	JUPYTER_PORT=8888
 
 WORKDIR /app
 
-# install donkey with tensorflow (cpu only version)
-ADD ./setup.py /app/setup.py
-ADD ./README.md /app/README.md
-RUN pip install -e .[tf]
+# Install minimal system deps needed for builds and git
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+	build-essential \
+	git \
+	curl \
+	ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-# get testing requirements
-RUN pip install -e .[dev]
+# Ensure pip tooling is up-to-date
+RUN python -m pip install --upgrade pip setuptools wheel
 
-# setup jupyter notebook to run without password
-RUN pip install jupyter notebook
-RUN jupyter notebook --generate-config
-RUN echo "c.NotebookApp.password = ''">>/root/.jupyter/jupyter_notebook_config.py
-RUN echo "c.NotebookApp.token = ''">>/root/.jupyter/jupyter_notebook_config.py
+# Copy just packaging files first to leverage Docker layer cache
+COPY pyproject.toml setup.cfg README.md requirements.txt /app/
 
-# add the whole app dir after install so the pip install isn't updated when code changes.
-ADD . /app
+# Copy package source needed for setup-time metadata (e.g. version attr)
+# so setuptools can import `donkeycar` when evaluating setup.cfg
+COPY donkeycar /app/donkeycar
 
-#start the jupyter notebook
-CMD jupyter notebook --no-browser --ip 0.0.0.0 --port 8888 --allow-root  --notebook-dir=/app/notebooks
+# Install project with tensorflow extras and dev requirements
+RUN pip install -e .[tf] && pip install -e .[dev]
 
-#port for donkeycar
-EXPOSE 8887
+# Install JupyterLab (modern interface) and matplotlib used by example notebooks.
+RUN pip install jupyterlab matplotlib
 
-#port for jupyter notebook
-EXPOSE 8888
+# Create an unprivileged user for development
+RUN useradd -m -s /bin/bash dev \
+ && chown -R dev:dev /app
+
+# Add the repository after installs so local edits are quick when mounted
+COPY . /app
+
+# Add entrypoint script to allow safer runtime configuration (token or insecure opt-in)
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+USER dev
+
+# Expose ports (informational - use -p on `docker run` to publish)
+EXPOSE 8887 8888
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["jupyter", "lab", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--notebook-dir=/app/notebooks", "--allow-root"]
