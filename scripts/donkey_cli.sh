@@ -72,6 +72,30 @@ ensure_python_version(){
     PY_MAJOR=0; PY_MINOR=0
   fi
 
+  # If a virtualenv already exists in the repo, prefer it if it already
+  # provides a suitable Python (>=3.11). Prompt the user to use it and
+  # skip any Python install steps if they agree.
+  if [ -n "${REPO_DIR-}" ] && [ -n "${VENV_DIR-}" ] && [ -d "$REPO_DIR/$VENV_DIR" ]; then
+    VENV_PY="$REPO_DIR/$VENV_DIR/bin/python3"
+    if [ ! -x "$VENV_PY" ]; then
+      VENV_PY="$REPO_DIR/$VENV_DIR/bin/python"
+    fi
+    if [ -x "$VENV_PY" ]; then
+      VENV_VER=$($VENV_PY -c 'import sys; print(f"%s.%s"%(sys.version_info.major, sys.version_info.minor))' 2>/dev/null || true)
+      if [ -n "$VENV_VER" ]; then
+        VENV_MAJOR=$(echo "$VENV_VER" | cut -d. -f1)
+        VENV_MINOR=$(echo "$VENV_VER" | cut -d. -f2)
+        if [ "$VENV_MAJOR" -gt 3 ] || { [ "$VENV_MAJOR" -eq 3 ] && [ "$VENV_MINOR" -ge 11 ]; }; then
+          if ask_yes_no "Detected existing venv at $REPO_DIR/$VENV_DIR using Python $VENV_VER. Use it and skip installing Python 3.11? [Y/n]: " "Y"; then
+            PYTHON_BIN="$VENV_PY"
+            info "Using existing venv Python $VENV_VER (no Python install needed)"
+            return 0
+          fi
+        fi
+      fi
+    fi
+  fi
+
   if [ "$PY_MAJOR" -gt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 11 ]; }; then
     info "Found python $PY_VER"
     # Ask user whether to use system python or force-install 3.11 (useful when system has newer like 3.13)
