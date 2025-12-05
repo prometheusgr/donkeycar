@@ -335,17 +335,58 @@ create_venv_and_install(){
   fi
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
+
+  # Use a repo-local TMPDIR so pip build/temp files don't fill a small /tmp tmpfs.
+  TMP_PIP_DIR="$REPO_DIR/tmp_pip"
+  mkdir -p "$TMP_PIP_DIR"
+  export TMPDIR="$TMP_PIP_DIR"
+
   pip install -U pip setuptools wheel
+
+  # Determine which requirements file to use (prefer Pi-specific file)
+  REQUIREMENTS_FILE=""
   if [ -f "requirements-pi.txt" ]; then
-    info "Installing requirements from requirements-pi.txt"
-    pip install -r requirements-pi.txt
+    REQUIREMENTS_FILE="requirements-pi.txt"
   elif [ -f "requirements.txt" ]; then
-    info "Installing requirements from requirements.txt"
-    pip install -r requirements.txt
+    REQUIREMENTS_FILE="requirements.txt"
+  fi
+
+  # If a requirements file exists, avoid reinstalling unchanged deps by
+  # storing a hash of the requirements. Use --no-cache-dir to avoid pip cache
+  # growth and force temp files into $TMPDIR.
+  if [ -n "$REQUIREMENTS_FILE" ]; then
+    info "Preparing to install requirements from $REQUIREMENTS_FILE"
+    # compute hash (if sha256sum available)
+    REQ_HASH_FILE="$VENV_DIR/.requirements_hash"
+    if command -v sha256sum >/dev/null 2>&1; then
+      NEW_HASH=$(sha256sum "$REQUIREMENTS_FILE" | awk '{print $1}') || NEW_HASH=""
+    else
+      NEW_HASH=""
+    fi
+
+    if [ -n "$NEW_HASH" ] && [ -f "$REQ_HASH_FILE" ] && [ "$(cat "$REQ_HASH_FILE")" = "$NEW_HASH" ]; then
+      info "Requirements unchanged since last install; skipping pip install. Remove $REQ_HASH_FILE to force reinstall."
+    else
+      info "Installing requirements (no pip cache, tempdir=$TMPDIR)"
+      pip install --no-cache-dir -r "$REQUIREMENTS_FILE" || {
+        err "pip install failed. You can retry with TMPDIR set to a location with more space.";
+        # cleanup TMPDIR before exiting the venv
+        deactivate
+        rm -rf "$TMP_PIP_DIR" 2>/dev/null || true
+        return 1
+      }
+      # record the requirements hash so we can skip next time
+      if [ -n "$NEW_HASH" ]; then
+        printf "%s" "$NEW_HASH" > "$REQ_HASH_FILE"
+      fi
+    fi
   else
     info "No requirements file found; skipping pip installs. You may install packages manually.";
   fi
+
+  # Deactivate venv and cleanup temporary pip build dir
   deactivate
+  rm -rf "$TMP_PIP_DIR" 2>/dev/null || true
 }
 
 validate_install(){
