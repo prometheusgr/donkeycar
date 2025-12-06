@@ -75,13 +75,15 @@ def sample_axes(dev: InputDevice, duration: int = 5):
                 break
     except KeyboardInterrupt:
         pass
-    ranges = {c: (v['min'], v['max'], v['max'] - v['min']) for c, v in stats.items()}
+    ranges = {c: (v['min'], v['max'], v['max'] - v['min'])
+              for c, v in stats.items()}
     return ranges
 
 
 def sample_buttons(dev: InputDevice, duration: int = 5):
     """Sample KEY events for `duration` seconds and return a set of codes seen."""
-    print(f"Sampling buttons for {duration} seconds... Press the button(s) now.")
+    print(
+        f"Sampling buttons for {duration} seconds... Press the button(s) now.")
     start = time.time()
     seen = set()
     try:
@@ -185,53 +187,67 @@ def main():
             monitor_device(device, duration=d)
         elif action == 'a':
             # Auto-detect steering axis
-            print("\nAuto-detect STEERING: move the steering control left and right repeatedly.")
+            print(
+                "\nAuto-detect STEERING: move the steering control left and right repeatedly.")
             input('Press Enter to start sampling (5s)...')
             a_ranges = sample_axes(device, duration=5)
             if not a_ranges:
-                print('No ABS events observed. Make sure you moved the sticks and try again.')
+                print(
+                    'No ABS events observed. Make sure you moved the sticks and try again.')
             else:
                 # choose axis with largest range
                 best = max(a_ranges.items(), key=lambda x: x[1][2])
                 ste_code, (smin, smax, srange) = best
-                print(f"Suggested steering axis: {ste_code} ({axis_name(ste_code)}) range {smin}..{smax} (delta {srange})")
-                use = input('Accept this as STEERING axis? [Y/n]: ').strip().lower()
+                print(
+                    f"Suggested steering axis: {ste_code} ({axis_name(ste_code)}) range {smin}..{smax} (delta {srange})")
+                use = input(
+                    'Accept this as STEERING axis? [Y/n]: ').strip().lower()
                 if use == 'n':
                     print('Detected axes:')
                     for c, (mn, mx, rng) in sorted(a_ranges.items(), key=lambda x: -x[1][2]):
-                        print(f"  {c} ({axis_name(c)}) range {mn}..{mx} delta {rng}")
-                    ste_choice = input('Enter axis code to use for STEERING (or blank to skip): ').strip()
+                        print(
+                            f"  {c} ({axis_name(c)}) range {mn}..{mx} delta {rng}")
+                    ste_choice = input(
+                        'Enter axis code to use for STEERING (or blank to skip): ').strip()
                     ste_code = int(ste_choice) if ste_choice else None
                 steering_axis = ste_code if ste_code is not None else None
 
             # Auto-detect THROTTLE
-            print("\nAuto-detect THROTTLE: move the throttle control (forward/back) repeatedly.")
+            print(
+                "\nAuto-detect THROTTLE: move the throttle control (forward/back) repeatedly.")
             input('Press Enter to start sampling (5s)...')
             t_ranges = sample_axes(device, duration=5)
             if not t_ranges:
-                print('No ABS events observed for throttle. Make sure you moved the throttle and try again.')
+                print(
+                    'No ABS events observed for throttle. Make sure you moved the throttle and try again.')
             else:
                 best_t = max(t_ranges.items(), key=lambda x: x[1][2])
                 thr_code, (tmin, tmax, trange) = best_t
-                print(f"Suggested throttle axis: {thr_code} ({axis_name(thr_code)}) range {tmin}..{tmax} (delta {trange})")
-                use_t = input('Accept this as THROTTLE axis? [Y/n]: ').strip().lower()
+                print(
+                    f"Suggested throttle axis: {thr_code} ({axis_name(thr_code)}) range {tmin}..{tmax} (delta {trange})")
+                use_t = input(
+                    'Accept this as THROTTLE axis? [Y/n]: ').strip().lower()
                 if use_t == 'n':
                     print('Detected axes:')
                     for c, (mn, mx, rng) in sorted(t_ranges.items(), key=lambda x: -x[1][2]):
-                        print(f"  {c} ({axis_name(c)}) range {mn}..{mx} delta {rng}")
-                    thr_choice = input('Enter axis code to use for THROTTLE (or blank to skip): ').strip()
+                        print(
+                            f"  {c} ({axis_name(c)}) range {mn}..{mx} delta {rng}")
+                    thr_choice = input(
+                        'Enter axis code to use for THROTTLE (or blank to skip): ').strip()
                     thr_code = int(thr_choice) if thr_choice else None
                 throttle_axis = thr_code if thr_code is not None else None
 
             # Auto-detect buttons
-            print('\nAuto-detect BUTTONS: when prompted, press the RECORD button once, then the MODE button once.')
+            print(
+                '\nAuto-detect BUTTONS: when prompted, press the RECORD button once, then the MODE button once.')
             input('Press Enter to sample buttons for RECORD (4s)...')
             rec_seen = sample_buttons(device, duration=4)
             rec_btn = None
             if rec_seen:
                 # pick first seen
                 rec_btn = sorted(rec_seen)[0]
-                print(f"Detected candidate RECORD button: {rec_btn} ({key_name(rec_btn)})")
+                print(
+                    f"Detected candidate RECORD button: {rec_btn} ({key_name(rec_btn)})")
                 if input('Accept as RECORD button? [Y/n]: ').strip().lower() == 'n':
                     rec_btn = None
             else:
@@ -242,7 +258,8 @@ def main():
             mode_btn = None
             if mode_seen:
                 mode_btn = sorted(mode_seen)[0]
-                print(f"Detected candidate MODE button: {mode_btn} ({key_name(mode_btn)})")
+                print(
+                    f"Detected candidate MODE button: {mode_btn} ({key_name(mode_btn)})")
                 if input('Accept as MODE button? [Y/n]: ').strip().lower() == 'n':
                     mode_btn = None
             else:
