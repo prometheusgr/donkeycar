@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Do not use -e here: we want the interactive CLI to continue running
+# even if individual commands fail (so the user can retry/create other cars).
+set -u -o pipefail
 IFS=$'\n\t'
 
 # Simple interactive installer / launcher for DonkeyCar on a fresh Debian/Pi
@@ -343,23 +345,24 @@ create_venv_and_install(){
 
   pip install -U pip setuptools wheel
 
-  # Determine which requirements file to use (prefer Pi-specific file)
-  REQUIREMENTS_FILE=""
+  # Determine which requirements files to install. Install base first, then Pi-specific.
+  REQUIREMENTS_FILES_ARRAY=()
+  if [ -f "requirements.txt" ]; then
+    REQUIREMENTS_FILES_ARRAY+=("requirements.txt")
+  fi
   if [ -f "requirements-pi.txt" ]; then
-    REQUIREMENTS_FILE="requirements-pi.txt"
-  elif [ -f "requirements.txt" ]; then
-    REQUIREMENTS_FILE="requirements.txt"
+    REQUIREMENTS_FILES_ARRAY+=("requirements-pi.txt")
   fi
 
-  # If a requirements file exists, avoid reinstalling unchanged deps by
-  # storing a hash of the requirements. Use --no-cache-dir to avoid pip cache
+  # If any requirements files exist, avoid reinstalling unchanged deps by
+  # storing a hash of the concatenated requirements. Use --no-cache-dir to avoid pip cache
   # growth and force temp files into $TMPDIR.
-  if [ -n "$REQUIREMENTS_FILE" ]; then
-    info "Preparing to install requirements from $REQUIREMENTS_FILE"
-    # compute hash (if sha256sum available)
+  if [ ${#REQUIREMENTS_FILES_ARRAY[@]} -gt 0 ]; then
+    info "Preparing to install requirements from: ${REQUIREMENTS_FILES_ARRAY[*]}"
     REQ_HASH_FILE="$VENV_DIR/.requirements_hash"
     if command -v sha256sum >/dev/null 2>&1; then
-      NEW_HASH=$(sha256sum "$REQUIREMENTS_FILE" | awk '{print $1}') || NEW_HASH=""
+      # compute hash of concatenated files in defined order
+      if NEW_HASH=$({ for f in "${REQUIREMENTS_FILES_ARRAY[@]}"; do cat "$f"; done } 2>/dev/null | sha256sum | awk '{print $1}'); then :; else NEW_HASH=""; fi
     else
       NEW_HASH=""
     fi
@@ -368,13 +371,14 @@ create_venv_and_install(){
       info "Requirements unchanged since last install; skipping pip install. Remove $REQ_HASH_FILE to force reinstall."
     else
       info "Installing requirements (no pip cache, tempdir=$TMPDIR)"
-      pip install --no-cache-dir -r "$REQUIREMENTS_FILE" || {
-        err "pip install failed. You can retry with TMPDIR set to a location with more space.";
-        # cleanup TMPDIR before exiting the venv
-        deactivate
-        rm -rf "$TMP_PIP_DIR" 2>/dev/null || true
-        return 1
-      }
+      for RF in "${REQUIREMENTS_FILES_ARRAY[@]}"; do
+        pip install --no-cache-dir -r "$RF" || {
+          err "pip install failed for $RF. You can retry with TMPDIR set to a location with more space.";
+          deactivate
+          rm -rf "$TMP_PIP_DIR" 2>/dev/null || true
+          return 1
+        }
+      done
       # record the requirements hash so we can skip next time
       if [ -n "$NEW_HASH" ]; then
         printf "%s" "$NEW_HASH" > "$REQ_HASH_FILE"
@@ -436,20 +440,79 @@ list_cars(){
 create_car(){
   read -r -p "Enter new car directory path (absolute or relative): " NEW
   if [ -z "$NEW" ]; then err "No path entered"; return 1; fi
-  # expand
-  NEW_ABS=$(python3 - <<PY
-import os,sys
-print(os.path.abspath(os.path.expanduser(sys.argv[1])))
-PY
-  "$NEW")
-  info "Creating car at: $NEW_ABS"
-  cd "$REPO_DIR"
-  # shellcheck disable=SC2086
-  if python3 -m donkeycar.management.base createcar --path "$NEW_ABS"; then
-    info "Car created at $NEW_ABS"
+  # If the user supplied a relative path, interpret it relative to the repository
+  # so running the CLI from the repo parent and entering a simple name like
+  # 'gaidaros' will create the car inside the repo.
+  if [[ "$NEW" = /* || "$NEW" = ~* ]]; then
+    RAW_PATH="$NEW"
   else
-    err "Failed to create car at $NEW_ABS"
+    RAW_PATH="$REPO_DIR/$NEW"
+    info "Interpreting relative path '$NEW' as '$RAW_PATH' (relative to repo)"
+  fi
+
+  # expand to absolute path (use -c and pass argument safely)
+  if command -v python3 >/dev/null 2>&1; then
+    NEW_ABS=$(python3 -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$RAW_PATH" 2>/dev/null || true)
+  else
+    # fallback to shell realpath if available
+    if command -v realpath >/dev/null 2>&1; then
+      NEW_ABS=$(realpath -m "$RAW_PATH" 2>/dev/null || true)
+    else
+      # last resort: naive expansion
+      NEW_ABS="$RAW_PATH"
+    fi
+  fi
+  info "Creating car at: $NEW_ABS"
+  if [ ! -d "$REPO_DIR" ]; then err "Repository dir $REPO_DIR not found"; return 1; fi
+  cd "$REPO_DIR" || { err "Failed to cd to $REPO_DIR"; return 1; }
+
+  # Prefer using the repository virtualenv Python if present
+  PY_EXEC=python3
+  if [ -x "$REPO_DIR/$VENV_DIR/bin/python" ]; then
+    PY_EXEC="$REPO_DIR/$VENV_DIR/bin/python"
+    info "Using virtualenv Python at $PY_EXEC to create car"
+  fi
+
+  # Quick import check so we can show a helpful message before running the command
+  # Ensure the repository root is on PYTHONPATH so imports work even if the
+  # package is not installed into the venv site-packages.
+  info "Temporarily adding $REPO_DIR to PYTHONPATH for import/run commands"
+  # Try importing and show traceback on failure to help debugging
+  IMPORT_CHECK=$({ PYTHONPATH="$REPO_DIR" "$PY_EXEC" - <<'PY'
+import sys,traceback
+try:
+    import donkeycar.management.base
+    print('IMPORT_OK')
+except Exception:
+    print('IMPORT_FAILED')
+    traceback.print_exc()
+    sys.exit(2)
+PY
+  } 2>&1 || true)
+
+  if echo "$IMPORT_CHECK" | grep -q '^IMPORT_OK'; then
+    : # import succeeded
+  else
+    err "Cannot import 'donkeycar.management.base' with $PY_EXEC even after adding $REPO_DIR to PYTHONPATH. See traceback below:"
+    echo "$IMPORT_CHECK" >&2
     return 1
+  fi
+
+  # Run the createcar command and capture its output for detailed error reporting
+  OUTPUT=$(PYTHONPATH="$REPO_DIR" "$PY_EXEC" -m donkeycar.management.base createcar --path "$NEW_ABS" 2>&1)
+  STATUS=$?
+  if [ "$STATUS" -eq 0 ]; then
+    info "Car created at $NEW_ABS"
+    if [ -n "$OUTPUT" ]; then
+      info "Command output: $OUTPUT"
+    fi
+    return 0
+  else
+    err "Failed to create car at $NEW_ABS (exit code $STATUS). See details below:"
+    echo "$OUTPUT" >&2
+    err "Common causes: missing dependencies in venv, incorrect PYTHONPATH, or insufficient permissions to create path."
+    err "Suggested actions: run option 3 to (re)create venv and install requirements; ensure $REPO_DIR/$VENV_DIR is active; check write permissions for $NEW_ABS."
+    return $STATUS
   fi
 }
 
@@ -500,7 +563,7 @@ main_menu(){
     echo "8) Start car (service or background)"
     echo "10) Remove virtualenv (.venv)"
     echo "9) Exit"
-    read -r -p "Choose an option [1-9]: " CH
+    read -r -p "Choose an option [1-10] (or type 'exit'): " CH
     case "$CH" in
       1) clone_repo ;; 
       2) install_prereqs ;; 
@@ -511,7 +574,7 @@ main_menu(){
       7) launch_calibrate ;; 
       8) launch_start ;; 
       10) remove_venv ;; 
-      9) info "Goodbye"; exit 0 ;; 
+      9|exit|quit|q) info "Goodbye"; exit 0 ;; 
       *) echo "Invalid choice" ;;
     esac
   done
