@@ -20,7 +20,7 @@ import time
 
 try:
     from evdev import InputDevice, list_devices, ecodes
-except Exception as e:
+except ImportError:
     print("Error: python-evdev is required. Install with: sudo apt install python3-evdev")
     sys.exit(2)
 
@@ -97,6 +97,25 @@ def sample_buttons(dev: InputDevice, duration: int = 5):
     return seen
 
 
+def sample_axis_center(dev: InputDevice, axis_code: int, duration: int = 3):
+    """Sample a single ABS axis and return the observed average (center) over duration seconds."""
+    print(
+        f"Sampling axis {axis_code} for center for {duration} seconds. Keep control centered...")
+    start = time.time()
+    vals = []
+    try:
+        for event in dev.read_loop():
+            if event.type == ecodes.EV_ABS and event.code == axis_code:
+                vals.append(event.value)
+            if time.time() - start > duration:
+                break
+    except KeyboardInterrupt:
+        pass
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
 def axis_name(code: int) -> str:
     inv_abs = {v: k for k, v in ecodes.ABS.items()}
     return inv_abs.get(code, str(code))
@@ -127,8 +146,26 @@ def prompt_assignments():
     }
 
 
-def write_mapping(mapping: dict, device_path: str):
-    myconfig = Path('mycar') / 'myconfig.py'
+def find_car_dirs(root: Path = Path('.')):
+    """Find candidate car folders under `root`.
+
+    A folder is considered a car if it contains `manage.py` or `myconfig.py`.
+    """
+    cars = []
+    for child in sorted(root.iterdir()):
+        if not child.is_dir():
+            continue
+        if (child / 'manage.py').exists() or (child / 'myconfig.py').exists():
+            cars.append(child)
+    # Prefer `mycar` if present but not otherwise matched
+    mycar = root / 'mycar'
+    if mycar.exists() and mycar.is_dir() and mycar not in cars:
+        cars.insert(0, mycar)
+    return cars
+
+
+def write_mapping(mapping: dict, device_path: str, car_dir: Path = Path('mycar')):
+    myconfig = Path(car_dir) / 'myconfig.py'
     myconfig.parent.mkdir(parents=True, exist_ok=True)
     if myconfig.exists():
         ts = time.strftime('%Y%m%d%H%M%S')
@@ -137,15 +174,21 @@ def write_mapping(mapping: dict, device_path: str):
         myconfig.rename(bak)
 
     lines = ["# Auto-generated joystick mapping by scripts/configure_joystick.py\n"]
-    lines.append(f"JOYSTICK_DEVICE = '{device_path}'\n")
+    # write the standard config name used by the project
+    lines.append(f"JOYSTICK_DEVICE_FILE = '{device_path}'\n")
     for k, v in mapping.items():
         if v is None:
             continue
         if isinstance(v, bool):
             lines.append(f"{k} = {v}\n")
         else:
-            # integers
+            # integers and floats
             lines.append(f"{k} = {v}\n")
+
+    # If STEERING_MIN/MAX/CENTER/DEADZONE present, add a short note
+    if any(x in mapping for x in ("STEERING_MIN", "THROTTLE_MIN")):
+        lines.append(
+            "\n# The *_MIN and *_MAX values are raw axis values from the device; *_CENTER is the measured center.\n")
 
     # add explanatory comment
     lines.append(
@@ -162,6 +205,31 @@ def main():
         print('No input devices found. Plug in controller and try again.')
         sys.exit(1)
 
+    # Choose car folder to configure
+    cars = find_car_dirs(Path('.'))
+    if not cars:
+        print("No car folders found. Will create and configure `mycar`.")
+        car_dir = Path('mycar')
+    elif len(cars) == 1:
+        car_dir = cars[0]
+        print(f"Found one car: '{car_dir}'. Configuring that car.")
+    else:
+        print('\nDetected car folders:')
+        for i, c in enumerate(cars):
+            print(f"  [{i}] {c}")
+        cchoice = input(
+            '\nChoose car index to configure (or press Enter to use 0): ').strip()
+        if not cchoice:
+            cidx = 0
+        else:
+            try:
+                cidx = int(cchoice)
+            except ValueError:
+                print('Invalid index, using 0')
+                cidx = 0
+        car_dir = cars[cidx]
+
+    # Choose device
     choice = input(
         '\nChoose device index to configure (or press Enter to use 0): ').strip()
     if not choice:
@@ -174,6 +242,10 @@ def main():
             sys.exit(2)
 
     device = devs[idx]
+
+    # Ensure these variables are always defined to avoid "possibly using variable before assignment"
+    steering_axis = None
+    throttle_axis = None
 
     while True:
         action = input(
@@ -275,15 +347,54 @@ def main():
                 'MODE_BUTTON': mode_btn,
             }
 
+            # If axis ranges were captured, add min/max/center and suggested deadzone
+            if 'steering_axis' in locals() and steering_axis is not None and 'a_ranges' in locals():
+                smin, smax, sdelta = a_ranges.get(
+                    steering_axis, (None, None, None))
+                if smin is not None:
+                    s_center = (smin + smax) / 2.0
+                    half_range = (smax - smin) / \
+                        2.0 if (smax - smin) != 0 else 1.0
+                    # normalized center offset in -1..1 space
+                    s_center_norm = (s_center - ((smin + smax) / 2.0)) / \
+                        (half_range) if half_range != 0 else 0.0
+                    # suggest a small deadzone as fraction of half-range
+                    s_dead = 0.03
+                    mapping.update({
+                        'STEERING_MIN_RAW': int(smin),
+                        'STEERING_MAX_RAW': int(smax),
+                        'STEERING_CENTER_RAW': float(s_center),
+                        'STEERING_CENTER_NORM': float(s_center_norm),
+                        'STEERING_DEADZONE': float(s_dead),
+                    })
+
+            if 'throttle_axis' in locals() and throttle_axis is not None and 't_ranges' in locals():
+                tmin, tmax, tdelta = t_ranges.get(
+                    throttle_axis, (None, None, None))
+                if tmin is not None:
+                    t_center = (tmin + tmax) / 2.0
+                    half_range = (tmax - tmin) / \
+                        2.0 if (tmax - tmin) != 0 else 1.0
+                    t_center_norm = (t_center - ((tmin + tmax) / 2.0)) / \
+                        (half_range) if half_range != 0 else 0.0
+                    t_dead = 0.03
+                    mapping.update({
+                        'THROTTLE_MIN_RAW': int(tmin),
+                        'THROTTLE_MAX_RAW': int(tmax),
+                        'THROTTLE_CENTER_RAW': float(t_center),
+                        'THROTTLE_CENTER_NORM': float(t_center_norm),
+                        'THROTTLE_DEADZONE': float(t_dead),
+                    })
+
             print('\nAuto-detection result:')
             for k, v in mapping.items():
                 print(f"  {k}: {v}")
-            if input('Write these values to mycar/myconfig.py? [y/N]: ').strip().lower().startswith('y'):
-                write_mapping(mapping, device.path)
+            if input(f'Write these values to {car_dir / "myconfig.py"}? [y/N]: ').strip().lower().startswith('y'):
+                write_mapping(mapping, device.path, car_dir=car_dir)
                 break
         elif action == 'c':
             mapping = prompt_assignments()
-            write_mapping(mapping, device.path)
+            write_mapping(mapping, device.path, car_dir=car_dir)
             break
         elif action == 'q':
             break

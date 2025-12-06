@@ -714,13 +714,37 @@ class JoystickController(object):
         pass
 
     def set_steering(self, axis_val):
-        self.angle = self.steering_scale * axis_val
+        # apply optional steering center correction (normalized)
+        center = getattr(self, 'STEERING_CENTER_NORM', 0.0)
+        try:
+            axis = axis_val - float(center)
+        except Exception:
+            axis = axis_val
+        # apply steering-specific deadzone if present, else use generic dead_zone
+        dead = getattr(self, 'STEERING_DEADZONE', None)
+        if dead is None:
+            dead = self.dead_zone
+        if abs(axis) < dead:
+            axis = 0.0
+        self.angle = self.steering_scale * axis
         # print("angle", self.angle)
 
     def set_throttle(self, axis_val):
         # this value is often reversed, with positive value when pulling down
         self.last_throttle_axis_val = axis_val
-        self.throttle = self.throttle_dir * axis_val * self.throttle_scale
+        # apply optional throttle center correction (normalized)
+        tcenter = getattr(self, 'THROTTLE_CENTER_NORM', 0.0)
+        try:
+            taxis = axis_val - float(tcenter)
+        except Exception:
+            taxis = axis_val
+        # apply throttle-specific deadzone if present, else use generic dead_zone
+        tdead = getattr(self, 'THROTTLE_DEADZONE', None)
+        if tdead is None:
+            tdead = self.dead_zone
+        if abs(taxis) < tdead:
+            taxis = 0.0
+        self.throttle = self.throttle_dir * taxis * self.throttle_scale
         # print("throttle", self.throttle)
         self.on_throttle_changes()
 
@@ -1420,6 +1444,14 @@ def get_js_controller(cfg):
                      dev_fn=cfg.JOYSTICK_DEVICE_FILE)
 
     ctr.set_deadzone(cfg.JOYSTICK_DEADZONE)
+    # If calibration values exist in cfg, copy them into the controller instance
+    calib_keys = [
+        'STEERING_MIN_RAW', 'STEERING_MAX_RAW', 'STEERING_CENTER_RAW', 'STEERING_CENTER_NORM', 'STEERING_DEADZONE',
+        'THROTTLE_MIN_RAW', 'THROTTLE_MAX_RAW', 'THROTTLE_CENTER_RAW', 'THROTTLE_CENTER_NORM', 'THROTTLE_DEADZONE'
+    ]
+    for k in calib_keys:
+        if hasattr(cfg, k):
+            setattr(ctr, k, getattr(cfg, k))
     return ctr
 
 

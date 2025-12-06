@@ -16,6 +16,44 @@ import time
 logger = logging.getLogger(__name__)
 
 
+# Provide a lightweight pigpio fallback when the real module isn't available,
+# so RCReceiver can be imported on non-Raspberry Pi systems for testing.
+try:
+    import pigpio  # type: ignore
+except ImportError:
+    logger.warning('pigpio module not available; using fallback stub')
+
+    class _FakeCB:
+        def cancel(self):
+            return None
+
+    class _FakePi:
+        def set_mode(self, pin, mode):
+            return None
+
+        def callback(self, pin, edge, func):
+            # Return a fake callback object with cancel()
+            return _FakeCB()
+
+    class _FakePigpioModule:
+        INPUT = 0
+        EITHER_EDGE = 1
+
+        def pi(self):
+            return _FakePi()
+
+        @staticmethod
+        def tickDiff(high, tick):
+            if high is None or tick is None:
+                return 0
+            try:
+                return high - tick
+            except Exception:
+                return 0
+
+    pigpio = _FakePigpioModule()
+
+
 class Joystick:
     '''
     An interface to a physical joystick.
@@ -194,10 +232,9 @@ class PyGameJoystick:
         for i in range(self.joystick.get_numbuttons()):
             state = self.joystick.get_button(i)
             if self.button_states[i] != state:
-                if i not in self.button_names:
-                    logger.info(f'button: {i}')
-                    continue
-                button = self.button_names[i]
+
+    def __init__(self, cfg, debug=False):
+        self.pi = pigpio.pi()
                 button_state = state
                 self.button_states[i] = state
                 logging.info("button: %s state: %d" % (button, state))
@@ -230,35 +267,35 @@ class Channel:
 
 class RCReceiver:
     MIN_OUT = -1
-    MAX_OUT = 1
 
-    def __init__(self, cfg, debug=False):
-        import pigpio
-
-        self.pi = pigpio.pi()
-
-        self.channels = [
-            Channel(cfg.STEERING_RC_GPIO),
+    def cbf(self, gpio, level, tick):
+        for channel in self.channels:
+            if gpio == channel.pin:
+                if level == 1:
+                    channel.high_tick = tick
+                elif level == 0:
+                    if channel.high_tick is not None:
+                        channel.tick = pigpio.tickDiff(channel.high_tick, tick)
             Channel(cfg.THROTTLE_RC_GPIO),
             Channel(cfg.DATA_WIPER_RC_GPIO),
         ]
-        self.min_pwm = 1000
-        self.max_pwm = 2000
-        self.oldtime = 0
-        self.STEERING_MID = cfg.PIGPIO_STEERING_MID
-        self.MAX_FORWARD = cfg.PIGPIO_MAX_FORWARD
-        self.STOPPED_PWM = cfg.PIGPIO_STOPPED_PWM
-        self.MAX_REVERSE = cfg.PIGPIO_MAX_REVERSE
-        self.RECORD = cfg.AUTO_RECORD_ON_THROTTLE
-        self.debug = debug
-        self.mode = 'user'
-        self.is_action = False
-        self.invert = cfg.PIGPIO_INVERT
-        self.jitter = cfg.PIGPIO_JITTER
-        self.factor = (self.MAX_OUT - self.MIN_OUT) / \
+        self.min_pwm= 1000
+        self.max_pwm= 2000
+        self.oldtime= 0
+        self.STEERING_MID= cfg.PIGPIO_STEERING_MID
+        self.MAX_FORWARD= cfg.PIGPIO_MAX_FORWARD
+        self.STOPPED_PWM= cfg.PIGPIO_STOPPED_PWM
+        self.MAX_REVERSE= cfg.PIGPIO_MAX_REVERSE
+        self.RECORD= cfg.AUTO_RECORD_ON_THROTTLE
+        self.debug= debug
+        self.mode= 'user'
+        self.is_action= False
+        self.invert= cfg.PIGPIO_INVERT
+        self.jitter= cfg.PIGPIO_JITTER
+        self.factor = (self.MAX_OUT - self.MIN_OUT) /
             (self.max_pwm - self.min_pwm)
-        self.cbs = []
-        self.signals = [0, 0, 0]
+        self.cbs= []
+        self.signals= [0, 0, 0]
         for channel in self.channels:
             self.pi.set_mode(channel.pin, pigpio.INPUT)
             self.cbs.append(self.pi.callback(
@@ -271,10 +308,10 @@ class RCReceiver:
         for channel in self.channels:
             if gpio == channel.pin:
                 if level == 1:
-                    channel.high_tick = tick
+                    channel.high_tick= tick
                 elif level == 0:
                     if channel.high_tick is not None:
-                        channel.tick = pigpio.tickDiff(channel.high_tick, tick)
+                        channel.tick= pigpio.tickDiff(channel.high_tick, tick)
 
     def pulse_width(self, high):
         if high is not None:
@@ -282,12 +319,12 @@ class RCReceiver:
         return 0.0
 
     def run(self, mode=None, recording=None):
-        i = 0
+        i= 0
         for channel in self.channels:
-            self.signals[i] = (self.pulse_width(
+            self.signals[i]= (self.pulse_width(
                 channel.tick) - self.min_pwm) * self.factor
             if self.invert:
-                self.signals[i] = -self.signals[i] + self.MAX_OUT
+                self.signals[i]= -self.signals[i] + self.MAX_OUT
             else:
                 self.signals[i] += self.MIN_OUT
             i += 1
