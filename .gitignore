@@ -2,6 +2,7 @@
 env/*
 data/*
 dist/*
+.venv/*
 
 *.pyc
 .ipynb_checkpoints/
