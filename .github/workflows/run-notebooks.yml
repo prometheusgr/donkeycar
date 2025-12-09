@@ -31,6 +31,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install jupyter nbconvert
+          pip install -e .
 
       - name: Execute notebooks
         run: |
