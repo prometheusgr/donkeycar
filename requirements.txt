@@ -17,3 +17,4 @@ pyserial
 utm
 pandas
 pyyaml
+matplotlib
