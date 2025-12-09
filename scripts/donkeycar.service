@@ -1,0 +1,18 @@
+[Unit]
+Description=Donkey Car autonomous vehicle service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/donkeycar
+Environment="PATH=/home/pi/donkeycar/.venv/bin"
+ExecStart=/home/pi/donkeycar/.venv/bin/python3 /home/pi/donkeycar/mycar/manage.py drive
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -210,18 +210,27 @@ if [ "$NO_RESTART" -eq 0 ]; then
         echo "  sudo systemctl restart $SERVICE_NAME"
       fi
     else
-      warn "Service $SERVICE_NAME not found. Attempting to enable and start it..."
-      if sudo systemctl enable "$SERVICE_NAME" 2>/dev/null && sudo systemctl start "$SERVICE_NAME"; then
-        info "Service $SERVICE_NAME enabled and started. Showing last 20 journal lines:"
-        sudo journalctl -u "$SERVICE_NAME" -n 20 --no-pager || true
-      else
-        warn "Could not enable/start $SERVICE_NAME. The service may not be installed."
-        echo "To set up the service, you may need to:"
-        echo "  1. Create a systemd service file at /etc/systemd/system/$SERVICE_NAME"
-        echo "  2. Run: sudo systemctl daemon-reload"
-        echo "  3. Run: sudo systemctl enable $SERVICE_NAME"
-        echo "  4. Run: sudo systemctl start $SERVICE_NAME"
-      fi
+      warn "Service $SERVICE_NAME not found."
+      warn ""
+      warn "The systemd service has not been installed. To set it up, run:"
+      warn ""
+      warn "  bash scripts/install_service.sh"
+      warn ""
+      warn "This will:"
+      warn "  - Copy the service template with the correct repository paths"
+      warn "  - Install the service file to /etc/systemd/system/$SERVICE_NAME"
+      warn "  - Enable the service to start on boot"
+      warn "  - Start the service immediately"
+      warn ""
+      warn "If you prefer to install manually:"
+      warn "  1. Run: bash scripts/install_service.sh (interactive setup)"
+      warn "  2. Or copy the template yourself:"
+      warn "     sudo cp scripts/donkeycar.service /etc/systemd/system/$SERVICE_NAME"
+      warn "     sudo systemctl daemon-reload"
+      warn "     sudo systemctl enable $SERVICE_NAME"
+      warn "     sudo systemctl start $SERVICE_NAME"
+      warn ""
+      warn "For more details, see: scripts/INSTALL_SERVICE.md"
     fi
   else
     warn "systemctl not found. Start your car process manually (for example: run your vehicle start script)."
