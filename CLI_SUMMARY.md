@@ -34,23 +34,27 @@ donkeycar/cli/
 ### 2. Command Groups
 
 #### CAR Commands
+
 - `donkey car create` - Create new car project with template
 - `donkey car configure` - Interactive hardware configuration
 - `donkey car info` - Display car configuration and structure
 
 #### DATA Commands
+
 - `donkey data record` - Start recording training data
 - `donkey data analyze` - Show dataset statistics
 - `donkey data visualize` - View sample frames with controls
 - `donkey data convert` - Convert between formats (v2, TFLite, CSV)
 
 #### TRAINING Commands
+
 - `donkey training train` - Train neural network models
 - `donkey training evaluate` - Evaluate model performance
 - `donkey training convert` - Convert TensorFlow to TFLite
 - `donkey training deploy` - Deploy models to cars
 
 #### SYSTEM Commands
+
 - `donkey system check` - Verify environment and dependencies
 - `donkey system install` - Install/update dependencies
 - `donkey system calibrate` - Interactive hardware calibration
@@ -61,6 +65,7 @@ donkeycar/cli/
 Created comprehensive documentation:
 
 - **`donkeycar/cli/README.md`** (2,000+ lines)
+
   - Quick start guide
   - Command reference
   - Project structure
@@ -69,6 +74,7 @@ Created comprehensive documentation:
   - Troubleshooting
 
 - **`donkeycar/cli/DEVELOPMENT.md`** (1,000+ lines)
+
   - Architecture overview
   - Adding new commands
   - Click patterns and best practices
@@ -76,6 +82,7 @@ Created comprehensive documentation:
   - Performance considerations
 
 - **`donkeycar/cli/ARCHITECTURE.md`** (1,000+ lines)
+
   - Project organization overview
   - Three main categories (Car, Data, Training)
   - Data flow diagrams
@@ -83,6 +90,7 @@ Created comprehensive documentation:
   - Extensibility design
 
 - **`MIGRATION.md`** (600+ lines)
+
   - Mapping old scripts to new CLI
   - Step-by-step migration guide
   - Backward compatibility info
@@ -98,10 +106,12 @@ Created comprehensive documentation:
 ### 4. Project Structure Enhancements
 
 **Updated Files:**
+
 - `setup.cfg` - Added Click dependency and new console script entry point
 - `README.md` - Added reference to new CLI
 
 **Entry Points:**
+
 - `donkey` → New CLI (recommended)
 - `donkey-legacy` → Old management interface (backward compatible)
 - `python -m donkeycar.cli` → Direct module invocation
@@ -109,35 +119,41 @@ Created comprehensive documentation:
 ## Key Features
 
 ### ✅ Well-Organized
+
 - Three main workflow categories (Car, Data, Training)
 - Clear separation of concerns
 - Logical command hierarchy
 
 ### ✅ User-Friendly
+
 - Interactive configuration wizards
 - Progress indicators and colored output
 - Helpful error messages
 - Auto-discovery of cars and datasets
 
 ### ✅ Extensible
+
 - Modular command structure
 - Shared utilities for common tasks
 - Easy to add new commands
 - Clear development guide
 
 ### ✅ Professional
+
 - Built on Click (industry standard)
 - Comprehensive documentation
 - Best practices throughout
 - Testing framework included
 
 ### ✅ Backward Compatible
+
 - Old scripts still work
 - Gradual migration path
 - Legacy interface preserved
 - No breaking changes
 
 ### ✅ Cross-Platform
+
 - Works on Linux, macOS, Windows
 - Path handling with pathlib
 - Shell-independent
@@ -216,9 +232,11 @@ mycar/
 ## Dependencies Added
 
 **New Dependency:**
+
 - `click>=8.0` - Professional CLI framework
 
 **Already Available:**
+
 - All existing DonkeyCar dependencies
 - Python 3.11+
 
@@ -226,14 +244,14 @@ mycar/
 
 The CLI integrates with existing DonkeyCar components:
 
-| CLI Command | Uses |
-|-------------|------|
-| `car create` | `donkeycar/templates/` |
-| `car configure` | `donkeycar/parts/` |
-| `data record` | `donkeycar/parts/camera`, `vehicle.py` |
-| `data convert` | `donkeycar/utilities/tub` |
-| `training train` | `donkeycar/pipeline/training` |
-| `system check` | `donkeycar/management/` |
+| CLI Command      | Uses                                   |
+| ---------------- | -------------------------------------- |
+| `car create`     | `donkeycar/templates/`                 |
+| `car configure`  | `donkeycar/parts/`                     |
+| `data record`    | `donkeycar/parts/camera`, `vehicle.py` |
+| `data convert`   | `donkeycar/utilities/tub`              |
+| `training train` | `donkeycar/pipeline/training`          |
+| `system check`   | `donkeycar/management/`                |
 
 ## Testing
 
@@ -273,6 +291,7 @@ donkey --help
 ## Files Created
 
 ### Core CLI Files (45 KB)
+
 - `donkeycar/cli/__init__.py`
 - `donkeycar/cli/__main__.py`
 - `donkeycar/cli/core.py`
@@ -285,6 +304,7 @@ donkey --help
 - `donkeycar/cli/utils/data.py`
 
 ### Documentation Files (15 KB)
+
 - `donkeycar/cli/README.md` - User guide
 - `donkeycar/cli/DEVELOPMENT.md` - Developer guide
 - `donkeycar/cli/ARCHITECTURE.md` - Architecture documentation
@@ -294,12 +314,14 @@ donkey --help
 ## Next Steps (Future Enhancements)
 
 ### Near-term (v5.3+)
+
 1. Implement actual training pipeline integration
 2. Add `donkey car drive` command
 3. Integrate with existing manage.py functionality
 4. Add TUB v2 format awareness
 
 ### Medium-term (v6.0+)
+
 1. Remote car management (SSH/VPN)
 2. Cloud data sync
 3. Automated training pipelines
@@ -307,6 +329,7 @@ donkey --help
 5. Performance monitoring dashboard
 
 ### Long-term
+
 1. WebUI for configuration
 2. Docker integration
 3. MLOps integration (MLflow, W&B)
@@ -352,6 +375,7 @@ cat EXAMPLES.md                       # More examples
 ## Support
 
 For questions about the CLI:
+
 - See `donkeycar/cli/README.md` for user documentation
 - See `donkeycar/cli/DEVELOPMENT.md` for developer documentation
 - Check `EXAMPLES.md` for common use cases

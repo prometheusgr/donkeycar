@@ -80,17 +80,17 @@ donkey car info --car-path mycar
 
 Here's how old scripts map to new CLI commands:
 
-| Old Script | New Command | Purpose |
-|------------|-------------|---------|
-| `setup_mycar.py` | `donkey car create` | Create car project |
-| `configure_joystick.py` | `donkey car configure` | Configure hardware |
-| (manage.py drive) | (Future: `donkey car drive`) | Drive the car |
-| `multi_train.py` | `donkey training train` | Train models |
-| `convert_to_tflite.py` | `donkey training convert` | Convert models |
-| `freeze_model.py` | (Integrated in training) | Model optimization |
-| `convert_to_tub_v2.py` | `donkey data convert` | Convert data formats |
-| Various calibration | `donkey system calibrate` | Hardware calibration |
-| `import_test.py` | `donkey system check` | Environment validation |
+| Old Script              | New Command                  | Purpose                |
+| ----------------------- | ---------------------------- | ---------------------- |
+| `setup_mycar.py`        | `donkey car create`          | Create car project     |
+| `configure_joystick.py` | `donkey car configure`       | Configure hardware     |
+| (manage.py drive)       | (Future: `donkey car drive`) | Drive the car          |
+| `multi_train.py`        | `donkey training train`      | Train models           |
+| `convert_to_tflite.py`  | `donkey training convert`    | Convert models         |
+| `freeze_model.py`       | (Integrated in training)     | Model optimization     |
+| `convert_to_tub_v2.py`  | `donkey data convert`        | Convert data formats   |
+| Various calibration     | `donkey system calibrate`    | Hardware calibration   |
+| `import_test.py`        | `donkey system check`        | Environment validation |
 
 ## Legacy Support
 
@@ -153,26 +153,30 @@ mycar/
 ### Migration Steps for Existing Projects
 
 1. **Backup your current car**
+
    ```bash
    cp -r mycar mycar.backup
    ```
 
 2. **Create new config structure**
+
    ```bash
    mkdir -p mycar/config
    ```
 
 3. **Move base configuration**
+
    ```bash
    # Copy relevant settings to mycar/config/car_config.py
    cp mycar/config.py mycar/config/car_config.py
    ```
 
 4. **Update myconfig.py**
+
    ```python
    # myconfig.py should now only have local overrides
    from config.car_config import *
-   
+
    # Your local customizations here
    MAX_THROTTLE = 0.5
    ```
@@ -187,12 +191,14 @@ mycar/
 ### Recording Data (Old vs New)
 
 **Old approach:**
+
 ```bash
 cd mycar
 python manage.py drive  # Records to mycar/data/
 ```
 
 **New approach (planned):**
+
 ```bash
 donkey data record --car-path mycar --name session_001
 ```
@@ -202,6 +208,7 @@ During transition, continue using `manage.py drive` and the CLI will auto-detect
 ### Training Models
 
 **Old approach:**
+
 ```bash
 cd mycar
 python train.py
@@ -210,6 +217,7 @@ python ../scripts/multi_train.py
 ```
 
 **New approach:**
+
 ```bash
 donkey training train \
   --car-path mycar \
@@ -235,6 +243,7 @@ export DONKEY_DEBUG=1
 ```
 
 Then use shorter commands:
+
 ```bash
 donkey car info              # Uses $DONKEY_CAR_PATH
 donkey data record           # Uses $DONKEY_DATA_PATH
@@ -245,6 +254,7 @@ donkey data record           # Uses $DONKEY_DATA_PATH
 ### Issue: `donkey` command not found
 
 **Solution:**
+
 ```bash
 # Reinstall package in development mode
 cd /path/to/donkeycar
@@ -257,6 +267,7 @@ python -m donkeycar.cli --help
 ### Issue: Click dependency missing
 
 **Solution:**
+
 ```bash
 # Install Click
 pip install click>=8.0
@@ -286,22 +297,26 @@ donkey training train --car-path mycar --data-dir mycar/data/session_001
 Don't need to migrate everything at once. Here's a suggested approach:
 
 **Phase 1: Try the CLI** (Week 1)
+
 - Install updated DonkeyCar
 - Run `donkey --help` and explore
 - Run `donkey system check` to verify environment
 - Keep using old scripts for production
 
 **Phase 2: Use for New Projects** (Week 2-4)
+
 - Use `donkey car create` for new cars
 - Use `donkey car configure` for new hardware
 - Continue using `manage.py drive` and `train.py` for now
 
 **Phase 3: Migrate Existing Projects** (Month 2)
+
 - Gradually migrate training to `donkey training train`
 - Reorganize car directories
 - Archive old scripts
 
 **Phase 4: Full CLI Adoption** (Month 3+)
+
 - Use CLI for all operations
 - Keep old scripts for reference only
 - Contribute improvements back to project

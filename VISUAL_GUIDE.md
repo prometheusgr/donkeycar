@@ -381,16 +381,19 @@ Problem: Training failed
 ## Next Steps
 
 1. **Quick Start (5 min)**
+
    ```
    cat QUICKSTART.md
    ```
 
 2. **Full Guide (30 min)**
+
    ```
    cat donkeycar/cli/README.md
    ```
 
 3. **Examples (15 min)**
+
    ```
    cat EXAMPLES.md
    ```

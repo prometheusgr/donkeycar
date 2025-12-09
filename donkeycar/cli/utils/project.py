@@ -8,16 +8,16 @@ from typing import List, Optional
 
 class ProjectManager:
     """Manage DonkeyCar projects."""
-    
+
     def __init__(self, root_dir: Optional[Path] = None):
         """
         Initialize project manager.
-        
+
         Args:
             root_dir: Root directory to search for projects (default: current dir)
         """
         self.root_dir = root_dir or Path.cwd()
-    
+
     def find_cars(self) -> List[Path]:
         """Find all car directories in project."""
         cars = []
@@ -27,7 +27,7 @@ class ProjectManager:
                 if (path / 'myconfig.py').exists() or (path / 'config' / 'car_config.py').exists():
                     cars.append(path)
         return sorted(cars)
-    
+
     def find_datasets(self, car_dir: Optional[Path] = None) -> List[Path]:
         """Find all datasets in a car or globally."""
         if car_dir:
@@ -40,9 +40,9 @@ class ProjectManager:
             for path in self.root_dir.rglob('data'):
                 if path.is_dir():
                     datasets.extend([d for d in path.iterdir() if d.is_dir()])
-        
+
         return sorted(datasets)
-    
+
     def find_models(self, car_dir: Optional[Path] = None) -> List[Path]:
         """Find all models in a car or globally."""
         if car_dir:
@@ -55,9 +55,9 @@ class ProjectManager:
             for path in self.root_dir.rglob('models'):
                 if path.is_dir():
                     models.extend([m for m in path.iterdir() if m.is_file()])
-        
+
         return sorted(models)
-    
+
     def validate_car(self, car_dir: Path) -> bool:
         """Check if a directory is a valid car project."""
         return (

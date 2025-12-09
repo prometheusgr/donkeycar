@@ -34,15 +34,19 @@ donkeycar/cli/
 ### Entry Points
 
 1. **Installed Command** (recommended)
+
    ```bash
    donkey --help
    ```
+
    Configured in `setup.cfg` as console script entry point.
 
 2. **Python Module**
+
    ```bash
    python -m donkeycar.cli --help
    ```
+
    Uses `donkeycar/cli/__main__.py`
 
 3. **Direct Script**
@@ -86,7 +90,7 @@ from pathlib import Path
 def myfeature():
     """
     Manage my feature.
-    
+
     Brief description of what this group does.
     """
     pass
@@ -98,11 +102,11 @@ def myfeature():
 def dothething(name, verbose):
     """
     Do the thing with the name.
-    
+
     Longer description of what this command does.
     """
     click.echo(f"Doing thing: {name}")
-    
+
     if verbose:
         click.echo("Details here...")
 ```
@@ -163,7 +167,7 @@ def create():
         click.echo("Creating...")
     else:
         click.echo("Cancelled")
-    
+
     name = click.prompt("Enter name", default="default")
     choice = click.prompt("Choose", type=click.Choice(['a', 'b']))
 ```
@@ -175,17 +179,17 @@ def create():
 def process():
     """Process items."""
     items = range(100)
-    
+
     # Progress bar
     with click.progressbar(items, label='Processing') as bar:
         for item in bar:
             time.sleep(0.1)
-    
+
     # Colored output
     click.secho("Success!", fg='green')
     click.secho("Warning", fg='yellow')
     click.secho("Error", fg='red')
-    
+
     # Styled text
     click.echo(click.style("Bold", bold=True))
     click.echo(click.style("Underline", underline=True))
@@ -241,7 +245,7 @@ from donkeycar.cli.commands.car import car
 def test_car_create():
     """Test car create command."""
     runner = CliRunner()
-    
+
     with runner.isolated_filesystem():
         result = runner.invoke(car, ['create', '--path', 'testcar'])
         assert result.exit_code == 0
@@ -251,11 +255,11 @@ def test_car_create():
 def test_car_create_exists():
     """Test creating when car already exists."""
     runner = CliRunner()
-    
+
     with runner.isolated_filesystem():
         # Create first
         runner.invoke(car, ['create', '--path', 'testcar'])
-        
+
         # Try creating again with --force
         result = runner.invoke(car, ['create', '--path', 'testcar', '--force'])
         assert result.exit_code == 0
@@ -267,19 +271,19 @@ def test_car_create_exists():
 def test_full_workflow():
     """Test complete car setup workflow."""
     runner = CliRunner()
-    
+
     with runner.isolated_filesystem():
         # Create car
         result = runner.invoke(car, ['create', '--path', 'testcar'])
         assert result.exit_code == 0
-        
+
         # Configure
         result = runner.invoke(car, [
             'configure', '--car-path', 'testcar',
             '--steering', '0', '--throttle', '1'
         ])
         assert result.exit_code == 0
-        
+
         # Verify
         result = runner.invoke(car, ['info', '--car-path', 'testcar'])
         assert 'testcar' in result.output
@@ -315,10 +319,10 @@ def process():
     click.echo("✓ Step 1 complete")
     click.echo("⏳ Step 2 in progress...")
     click.echo("✗ Step 3 failed")
-    
+
     # Use colors for emphasis
     click.secho("Success!", fg='green', bold=True)
-    
+
     # Use indentation for hierarchy
     click.echo("Configuration:")
     click.echo("  • Steering: 0")
@@ -335,13 +339,13 @@ def process():
 def train(epochs, data_dir):
     """
     Train a model on data.
-    
+
     Trains a neural network using the provided dataset.
-    
+
     \b
     Example:
       donkey training train --epochs 50 /path/to/data
-    
+
     \b
     For more information:
       https://docs.donkeycar.com/training
@@ -391,7 +395,7 @@ For long operations, provide feedback:
 def process():
     """Process data."""
     items = get_items()
-    
+
     with click.progressbar(items) as bar:
         for item in bar:
             process_item(item)
@@ -413,17 +417,17 @@ Each command should have:
 def create(name):
     """
     Create a new car project.
-    
+
     This creates a new directory with the car template files,
     including configuration, data directory, and models folder.
-    
+
     \b
     Example:
       donkey car create --path mycar
-    
+
     You can then configure your car with:
       donkey car configure --car-path mycar
-    
+
     \b
     See also:
       - donkey car configure
@@ -442,7 +446,7 @@ Future versions may support plugin architecture:
 class CustomCommand:
     name = "custom"
     help = "My custom command"
-    
+
     def create_command(self):
         @click.command()
         def cmd():

@@ -29,6 +29,7 @@ donkey car create --path mycar
 ```
 
 **What happens:**
+
 - Creates `mycar/` directory
 - Sets up `config/` folder for car settings
 - Creates `myconfig.py` for local customization
@@ -41,6 +42,7 @@ donkey car configure --car-path mycar
 ```
 
 **What it asks:**
+
 ```
 Steering axis code: 0
 Invert steering? [y/N]: N
@@ -59,6 +61,7 @@ donkey car info --path mycar
 ```
 
 **Shows:**
+
 - Directory structure
 - Current configuration values
 - File count in each directory
@@ -83,16 +86,19 @@ cat EXAMPLES.md
 ## Common Next Steps
 
 ### Record Some Data
+
 ```bash
 donkey data record --car-path mycar --duration 60
 ```
 
 ### Check What Was Recorded
+
 ```bash
 donkey data analyze --data-dir mycar/data
 ```
 
 ### Set Up Everything
+
 ```bash
 donkey car create --path mycar
 donkey car configure --car-path mycar
@@ -117,6 +123,7 @@ donkey training deploy --car-path mycar --model model_v1
 # SYSTEM STUFF
 donkey system check          # Verify setup
 donkey system install        # Install dependencies
+donkey system update         # Get latest from GitHub
 donkey system calibrate      # Set up hardware
 donkey system info           # Show environment
 
@@ -129,6 +136,7 @@ donkey <command> --help      # Detailed help
 ## Troubleshooting
 
 ### "donkey: command not found"
+
 ```bash
 # Install Click first
 pip install click>=8.0
@@ -138,15 +146,19 @@ python -m donkeycar.cli --help
 ```
 
 ### "No input devices found"
+
 You need a joystick/controller connected for the joystick configuration step.
 
 ### "Car already exists"
+
 If you get an error when creating, use a different path:
+
 ```bash
 donkey car create --path mycar2
 ```
 
 ### Need More Help?
+
 ```bash
 # Read the user guide
 less donkeycar/cli/README.md
@@ -180,6 +192,7 @@ mycar/
 ```
 
 Edit `myconfig.py` to customize your car:
+
 ```python
 # myconfig.py
 from config.car_config import *
@@ -207,13 +220,13 @@ donkey training train --help
 
 ## Need to Learn More?
 
-| Topic | File |
-|-------|------|
-| Full user guide | `donkeycar/cli/README.md` |
-| Development guide | `donkeycar/cli/DEVELOPMENT.md` |
-| Architecture | `donkeycar/cli/ARCHITECTURE.md` |
-| Migration from old scripts | `MIGRATION.md` |
-| Many examples | `EXAMPLES.md` |
+| Topic                      | File                            |
+| -------------------------- | ------------------------------- |
+| Full user guide            | `donkeycar/cli/README.md`       |
+| Development guide          | `donkeycar/cli/DEVELOPMENT.md`  |
+| Architecture               | `donkeycar/cli/ARCHITECTURE.md` |
+| Migration from old scripts | `MIGRATION.md`                  |
+| Many examples              | `EXAMPLES.md`                   |
 
 ## Get Help
 

@@ -36,11 +36,13 @@ donkeycar/
 **Purpose:** Create and manage car instances and hardware configurations
 
 **Commands:**
+
 - `donkey car create` - Create new car project
 - `donkey car configure` - Configure hardware (steering, throttle, buttons)
 - `donkey car info` - Display car configuration
 
 **What It Does:**
+
 ```
 Create:     Generates project structure with config directories
 Configure:  Interactive hardware calibration wizard
@@ -48,6 +50,7 @@ Info:       Shows current settings and project structure
 ```
 
 **Example Project Structure:**
+
 ```
 mycar/
 ├── config/
@@ -65,12 +68,14 @@ mycar/
 **Purpose:** Record, manage, and process training datasets
 
 **Commands:**
+
 - `donkey data record` - Start recording training data
 - `donkey data analyze` - Show dataset statistics
 - `donkey data visualize` - View sample frames
 - `donkey data convert` - Convert between formats (TUB v2, TFLite, CSV)
 
 **What It Does:**
+
 ```
 Record:    Captures camera frames and control inputs
 Analyze:   Shows frame counts and distributions
@@ -79,6 +84,7 @@ Convert:   Transforms between data formats
 ```
 
 **Data Organization:**
+
 ```
 mycar/data/
 ├── session_001/
@@ -99,12 +105,14 @@ mycar/data/
 **Purpose:** Train, evaluate, and deploy machine learning models
 
 **Commands:**
+
 - `donkey training train` - Train neural network model
 - `donkey training evaluate` - Evaluate model performance
 - `donkey training convert` - Convert to TFLite format
 - `donkey training deploy` - Deploy model to car
 
 **What It Does:**
+
 ```
 Train:     Builds model from training data with augmentation
 Evaluate:  Tests model on validation data
@@ -113,6 +121,7 @@ Deploy:    Copies model to car's model directory
 ```
 
 **Model Pipeline:**
+
 ```
 Training Data
     ↓
@@ -136,12 +145,14 @@ Car Ready for Inference
 **Purpose:** Environment setup, validation, and hardware calibration
 
 **Commands:**
+
 - `donkey system check` - Verify Python and dependencies
 - `donkey system install` - Install required packages
 - `donkey system calibrate` - Interactive hardware calibration
 - `donkey system info` - Display system information
 
 **What It Does:**
+
 ```
 Check:     Validates Python version and packages
 Install:   Sets up dependencies from requirements.txt
@@ -227,18 +238,22 @@ Info:      Shows DonkeyCar version and environment
 ## Key Features
 
 ### Organized by Workflow
+
 - **Car**: Setup and configuration
 - **Data**: Collection and management
 - **Training**: Model development
 - **System**: Infrastructure
 
 ### Project Discovery
+
 The CLI auto-discovers:
+
 - Car directories (with `myconfig.py` or `config/car_config.py`)
 - Dataset directories (in `mycar/data/`)
 - Model files (in `mycar/models/`)
 
 ### Configuration Layers
+
 ```
 Environment Variables
         ↓
@@ -250,6 +265,7 @@ Defaults
 ```
 
 ### Cross-Platform
+
 - Works on Linux, macOS, Windows
 - Uses pathlib for path handling
 - Click for portable CLI
@@ -311,11 +327,13 @@ for plugin in discover_plugins():
 ## Performance & Scalability
 
 ### Local Performance
+
 - Fast command startup (lazy imports)
 - Efficient project discovery
 - Concurrent data processing
 
 ### Scalability Features
+
 - Multiple car management
 - Large dataset handling (with proper TUB format)
 - Distributed training support (via TensorFlow)
@@ -339,6 +357,7 @@ donkey training train --car-path mycar ...
 ```
 
 The old `donkey` command is renamed to `donkey-legacy`:
+
 ```bash
 donkey-legacy --help  # Old management interface
 donkey --help         # New organized CLI

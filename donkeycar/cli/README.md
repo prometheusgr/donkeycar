@@ -91,6 +91,7 @@ donkey car info         # Display car configuration
 ```
 
 **Example Workflow:**
+
 ```bash
 # New car setup
 donkey car create --path mycar
@@ -108,6 +109,7 @@ donkey data visualize   # View sample frames with control inputs
 ```
 
 **Example Workflow:**
+
 ```bash
 # Data management
 donkey data record --car-path mycar --name session_001
@@ -125,6 +127,7 @@ donkey training deploy   # Deploy model to a car
 ```
 
 **Example Workflow:**
+
 ```bash
 # Training pipeline
 donkey training train \
@@ -146,17 +149,22 @@ donkey training deploy --car-path mycar --model model_v1
 ```bash
 donkey system check      # Verify environment and dependencies
 donkey system install    # Install/update dependencies
+donkey system update     # Update CLI from GitHub main branch
 donkey system calibrate  # Interactive hardware calibration
 donkey system info       # Display system information
 donkey system completion # Generate shell completion
 ```
 
 **Example Workflow:**
+
 ```bash
 # Setup new system
 donkey system check
 donkey system install
 donkey system calibrate --device joystick
+
+# Update to latest version
+donkey system update
 ```
 
 ## Project Structure
@@ -270,6 +278,7 @@ The CLI integrates with existing DonkeyCar scripts:
 ## Troubleshooting
 
 ### CLI not found
+
 ```bash
 # Install click dependency
 pip install click
@@ -279,6 +288,7 @@ pip install -r requirements.txt
 ```
 
 ### Permission denied (Linux/Mac)
+
 ```bash
 # Make script executable
 chmod +x /path/to/donkey
@@ -288,12 +298,57 @@ python -m donkeycar.cli --help
 ```
 
 ### Missing dependencies
+
 ```bash
 # Run system check
 donkey system check
 
 # Install missing packages
 donkey system install
+```
+
+## Updating the CLI
+
+The CLI can be easily updated to the latest version from GitHub:
+
+```bash
+# Update to latest main branch
+donkey system update
+
+# This will:
+# 1. Fetch latest changes from GitHub
+# 2. Switch to main branch
+# 3. Pull latest code
+# 4. Reinstall with pip install -e .
+```
+
+### Manual Update
+
+If you're not in a git repository or prefer manual updates:
+
+```bash
+# Navigate to your donkeycar directory
+cd /path/to/donkeycar
+
+# Fetch latest changes
+git fetch origin
+
+# Switch to main branch
+git checkout main
+
+# Pull latest code
+git pull origin main
+
+# Reinstall
+pip install -e .
+```
+
+### Alternative: Upgrade via pip
+
+If DonkeyCar is installed from PyPI:
+
+```bash
+pip install --upgrade donkeycar
 ```
 
 ## Future Enhancements
@@ -341,6 +396,7 @@ cli.add_command(cloud.cloud)
 ## Support
 
 For issues or questions:
-- GitHub Issues: https://github.com/autorope/donkeycar/issues
+
+- GitHub Issues: https://github.com/prometheusgr/donkeycar/issues
 - Documentation: https://docs.donkeycar.com
 - Community: https://donkeycar.com

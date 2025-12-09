@@ -6,6 +6,7 @@ Handles:
 - Dependency installation
 - Hardware calibration (joystick, camera)
 - System diagnostics
+- CLI updates from GitHub
 """
 
 import click
@@ -18,8 +19,8 @@ import sys
 def system():
     """
     System setup and utilities.
-    
-    Install dependencies, validate environment, calibrate hardware.
+
+    Install dependencies, validate environment, calibrate hardware, and update the CLI.
     """
     pass
 
@@ -28,23 +29,24 @@ def system():
 def check():
     """
     Check system environment and dependencies.
-    
+
     Validates Python version, installed packages, and system capabilities.
     """
     click.echo("System Environment Check")
     click.echo("=" * 60)
-    
+
     # Python version
     click.echo(f"\nPython Version: {sys.version}")
-    
+
     py_major = sys.version_info.major
     py_minor = sys.version_info.minor
-    
+
     if (py_major, py_minor) >= (3, 11):
         click.secho("✓ Python 3.11+ detected", fg='green')
     else:
-        click.secho(f"✗ Python {py_major}.{py_minor} - 3.11+ required", fg='red')
-    
+        click.secho(
+            f"✗ Python {py_major}.{py_minor} - 3.11+ required", fg='red')
+
     # Check key packages
     click.echo("\nInstalled Packages:")
     packages = [
@@ -55,7 +57,7 @@ def check():
         'click',
         'pillow',
     ]
-    
+
     for pkg in packages:
         try:
             mod = __import__(pkg.replace('-', '_'))
@@ -69,22 +71,23 @@ def check():
 def install():
     """
     Install or update DonkeyCar dependencies.
-    
+
     Sets up required Python packages and system utilities.
     """
     click.echo("Installing DonkeyCar Dependencies")
     click.echo("=" * 60)
-    
+
     # Check for requirements file
     requirements_file = Path('requirements.txt')
-    
+
     if requirements_file.exists():
         click.echo(f"\nUsing: {requirements_file}")
-        
+
         if click.confirm("Install from requirements.txt?"):
             try:
                 subprocess.run(
-                    [sys.executable, '-m', 'pip', 'install', '-r', str(requirements_file)],
+                    [sys.executable, '-m', 'pip', 'install',
+                        '-r', str(requirements_file)],
                     check=True
                 )
                 click.secho("✓ Installation complete", fg='green')
@@ -99,40 +102,40 @@ def install():
 def calibrate():
     """
     Calibrate hardware devices.
-    
+
     Interactive calibration for joystick, camera, steering, and throttle.
     """
     click.echo("Hardware Calibration")
     click.echo("=" * 60)
-    
+
     device_type = click.prompt(
         "Select device to calibrate",
         type=click.Choice(['joystick', 'camera', 'motor']),
         default='joystick'
     )
-    
+
     if device_type == 'joystick':
         click.echo("\nJoystick Calibration")
         click.echo("Connect your joystick and press Enter to start...")
         click.pause()
-        
+
         click.echo("\n[Joystick calibration routine would run here]")
         click.echo("Please perform the following actions:")
         click.echo("  1. Move steering stick left and right")
         click.echo("  2. Move throttle stick forward and backward")
         click.echo("  3. Press each button")
-        
+
     elif device_type == 'camera':
         click.echo("\nCamera Calibration")
         click.echo("This will help improve image quality and alignment.")
-        
+
         click.echo("\n[Camera calibration routine would run here]")
         click.echo("Checking camera feed...")
-        
+
     elif device_type == 'motor':
         click.echo("\nMotor/Throttle Calibration")
         click.echo("This will set throttle neutral point and range.")
-        
+
         click.echo("\n[Motor calibration routine would run here]")
 
 
@@ -140,23 +143,23 @@ def calibrate():
 def info():
     """
     Display system and project information.
-    
+
     Shows DonkeyCar version, environment, and project structure.
     """
     from donkeycar import __version__
-    
+
     click.echo("DonkeyCar System Information")
     click.echo("=" * 60)
-    
+
     click.echo(f"\nDonkeyCar Version: {__version__}")
     click.echo(f"Python Version: {sys.version.split()[0]}")
-    
+
     # Find cars in current directory
     click.echo("\nLocal Cars Found:")
     for car_path in sorted(Path('.').glob('*/myconfig.py')):
         car_dir = car_path.parent
         click.echo(f"  - {car_dir}")
-    
+
     # Find data directories
     click.echo("\nData Sets Found:")
     for data_path in sorted(Path('.').glob('*/data/*')):
@@ -166,12 +169,96 @@ def info():
 
 
 @system.command()
-@click.option('--format', type=click.Choice(['bash', 'powershell']), 
+def update():
+    """
+    Update DonkeyCar to the latest version from GitHub.
+
+    Downloads and installs the latest main branch from the official repository.
+    """
+    click.echo("DonkeyCar Update")
+    click.echo("=" * 60)
+
+    # Check if git is available
+    try:
+        subprocess.run(['git', '--version'], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        click.secho(
+            "✗ Git not found. Install git to use update command.", fg='red')
+        return
+
+    # Get current directory info
+    try:
+        # Check if we're in a git repository
+        result = subprocess.run(
+            ['git', 'rev-parse', '--git-dir'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        git_dir = result.stdout.strip()
+
+        # Get current branch
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        current_branch = result.stdout.strip()
+
+        click.echo(f"Current Branch: {current_branch}")
+        click.echo(f"Git Directory: {git_dir}")
+
+    except subprocess.CalledProcessError:
+        click.secho("✗ Not in a git repository", fg='red')
+        click.echo("\nTo update, you need to clone from GitHub:")
+        click.echo("  git clone https://github.com/autorope/donkeycar.git")
+        click.echo("  cd donkeycar")
+        click.echo("  git checkout main")
+        click.echo("  pip install -e .")
+        return
+
+    # Confirm update
+    if not click.confirm("\nUpdate DonkeyCar from main branch?", default=True):
+        click.echo("Update cancelled.")
+        return
+
+    try:
+        click.echo("\nFetching latest changes...")
+        subprocess.run(['git', 'fetch', 'origin'], check=True)
+
+        click.echo("Checking out main branch...")
+        subprocess.run(['git', 'checkout', 'main'], check=True)
+
+        click.echo("Pulling latest changes...")
+        subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
+
+        click.echo("Reinstalling DonkeyCar...")
+        subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', '-e', '.'],
+            check=True
+        )
+
+        # Get new version
+        from donkeycar import __version__
+        click.secho(f"✓ Update complete! Version: {__version__}", fg='green')
+
+    except subprocess.CalledProcessError as e:
+        click.secho(f"✗ Update failed: {e}", fg='red')
+        click.echo("\nTo manually update:")
+        click.echo("  git fetch origin")
+        click.echo("  git checkout main")
+        click.echo("  git pull origin main")
+        click.echo("  pip install -e .")
+
+
+@system.command()
+@click.option('--format', type=click.Choice(['bash', 'powershell']),
               default='bash', help='Shell completion format')
 def completion(format):
     """
     Generate shell completion script.
-    
+
     Creates completion for bash or PowerShell.
     """
     if format == 'bash':

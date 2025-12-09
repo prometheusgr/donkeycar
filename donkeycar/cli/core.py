@@ -22,15 +22,15 @@ from .commands import car, data, training, system
 def cli(ctx):
     """
     DonkeyCar CLI - Unified command interface for DonkeyCar projects.
-    
+
     Organize your DonkeyCar workflow across three main areas:
-    
+
     \b
     car       - Create, configure, and manage car instances
     data      - Capture, process, and manage training data
     training  - Train, evaluate, and deploy models
     system    - System setup and utilities
-    
+
     Use 'donkey <command> --help' for more information on each command.
     """
     if ctx.invoked_subcommand is None:
