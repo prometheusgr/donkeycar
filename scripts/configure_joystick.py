@@ -205,11 +205,14 @@ def main():
         print('No input devices found. Plug in controller and try again.')
         sys.exit(1)
 
-    # Choose car folder to configure
-    cars = find_car_dirs(Path('.'))
+    # Determine project root (script is in scripts/). Search project root for cars.
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+    print(f"Searching for cars under project root: {project_root}")
+    cars = find_car_dirs(project_root)
     if not cars:
-        print("No car folders found. Will create and configure `mycar`.")
-        car_dir = Path('mycar')
+        print("No car folders found in project root. Will create and configure `mycar` under project root.")
+        car_dir = project_root / 'mycar'
     elif len(cars) == 1:
         car_dir = cars[0]
         print(f"Found one car: '{car_dir}'. Configuring that car.")
