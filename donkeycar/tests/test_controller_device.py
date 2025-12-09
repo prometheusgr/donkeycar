@@ -1,10 +1,6 @@
 """Unit tests for controller_device module."""
 
-try:
-    import pytest  # type: ignore
-except ImportError:
-    pytest = None  # type: ignore
-
+import pytest
 from unittest.mock import Mock, MagicMock, patch
 from donkeycar.parts.controller_device import (
     Channel,
@@ -152,10 +148,10 @@ class TestRCReceiver:
         """Test run method with basic parameters."""
         receiver = RCReceiver(mock_config)
 
-        signals, _throttle, mode, is_action = receiver.run()
+        steering, throttle, mode, is_action = receiver.run()
 
-        assert len(signals) == 3
-        assert isinstance(signals, list)
+        assert isinstance(steering, (int, float))
+        assert isinstance(throttle, (int, float))
         assert mode == 'user'
         assert is_action is False
 
@@ -163,7 +159,7 @@ class TestRCReceiver:
         """Test run method with recording parameter."""
         receiver = RCReceiver(mock_config)
 
-        _signals, _throttle, _mode, is_action = receiver.run(recording=True)
+        _steering, _throttle, _mode, is_action = receiver.run(recording=True)
 
         assert is_action is True
 
@@ -327,10 +323,10 @@ class TestIntegration:
         receiver.cbf(mock_config.STEERING_RC_GPIO, 0, 2500)
 
         # Run and get signals
-        signals, _throttle, _mode, _is_action = receiver.run()
+        steering, throttle, _mode, _is_action = receiver.run()
 
-        assert isinstance(signals, list)
-        assert len(signals) == 3
+        assert isinstance(steering, (int, float))
+        assert isinstance(throttle, (int, float))
 
     def test_channel_integration_with_receiver(self, mock_config):
         """Test Channel integration with RCReceiver."""
