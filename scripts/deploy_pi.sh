@@ -199,13 +199,29 @@ fi
 
 if [ "$NO_RESTART" -eq 0 ]; then
   if command -v systemctl >/dev/null 2>&1; then
-    info "Restarting systemd service: $SERVICE_NAME"
-    if sudo systemctl restart "$SERVICE_NAME"; then
-      info "Service restarted. Showing last 20 journal lines:"
-      sudo journalctl -u "$SERVICE_NAME" -n 20 --no-pager || true
+    # Check if the service exists before attempting to restart
+    if sudo systemctl list-unit-files "$SERVICE_NAME" >/dev/null 2>&1; then
+      info "Service $SERVICE_NAME found. Restarting..."
+      if sudo systemctl restart "$SERVICE_NAME"; then
+        info "Service restarted. Showing last 20 journal lines:"
+        sudo journalctl -u "$SERVICE_NAME" -n 20 --no-pager || true
+      else
+        warn "Failed to restart $SERVICE_NAME via systemctl. You may need to run the following manually:"
+        echo "  sudo systemctl restart $SERVICE_NAME"
+      fi
     else
-      warn "Failed to restart $SERVICE_NAME via systemctl. You may need to run the following manually:"
-      echo "  sudo systemctl restart $SERVICE_NAME"
+      warn "Service $SERVICE_NAME not found. Attempting to enable and start it..."
+      if sudo systemctl enable "$SERVICE_NAME" 2>/dev/null && sudo systemctl start "$SERVICE_NAME"; then
+        info "Service $SERVICE_NAME enabled and started. Showing last 20 journal lines:"
+        sudo journalctl -u "$SERVICE_NAME" -n 20 --no-pager || true
+      else
+        warn "Could not enable/start $SERVICE_NAME. The service may not be installed."
+        echo "To set up the service, you may need to:"
+        echo "  1. Create a systemd service file at /etc/systemd/system/$SERVICE_NAME"
+        echo "  2. Run: sudo systemctl daemon-reload"
+        echo "  3. Run: sudo systemctl enable $SERVICE_NAME"
+        echo "  4. Run: sudo systemctl start $SERVICE_NAME"
+      fi
     fi
   else
     warn "systemctl not found. Start your car process manually (for example: run your vehicle start script)."
