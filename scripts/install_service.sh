@@ -10,7 +10,7 @@ IFS=$'\n\t'
 
 SERVICE_NAME="donkeycar.service"
 REPO_PATH=""
-CAR_USER="pi"
+CAR_USER=""
 CAR_DIR="mycar"
 
 info(){ printf "[INFO] %s\n" "$*"; }
@@ -35,6 +35,12 @@ if [ -z "$REPO_PATH" ]; then
     err "Not inside a git repository. Provide --repo /path/to/repo or cd to your repo first."
     exit 1
   fi
+fi
+
+# Auto-detect the current user if not provided
+if [ -z "$CAR_USER" ]; then
+  CAR_USER=$(whoami)
+  info "Auto-detected user: $CAR_USER"
 fi
 
 TEMPLATE_FILE="$REPO_PATH/scripts/donkeycar.service"
