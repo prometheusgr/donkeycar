@@ -11,7 +11,6 @@ import os
 import array
 import struct
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,10 @@ except ImportError:
             return None
 
     class _FakePi:
-        def set_mode(self, pin, mode):
+        def set_mode(self, _pin, _mode):
             return None
 
-        def callback(self, pin, edge, func):
+        def callback(self, _pin, _edge, _func):
             # Return a fake callback object with cancel()
             return _FakeCB()
 
@@ -43,12 +42,12 @@ except ImportError:
             return _FakePi()
 
         @staticmethod
-        def tickDiff(high, tick):
+        def tick_diff(high, tick):
             if high is None or tick is None:
                 return 0
             try:
                 return high - tick
-            except Exception:
+            except (TypeError, ValueError):
                 return 0
 
     pigpio = _FakePigpioModule()
@@ -68,28 +67,29 @@ class Joystick:
         self.button_map = []
         self.jsdev = None
         self.dev_fn = dev_fn
+        self.num_axes = 0
+        self.num_buttons = 0
+        self.js_name = ''
 
     def init(self) -> bool:
         try:
             from fcntl import ioctl
         except ModuleNotFoundError:
-            self.num_axes = 0
-            self.num_buttons = 0
             logger.warning(
                 "no support for fnctl module. joystick not enabled.")
             return False
 
         if not os.path.exists(self.dev_fn):
-            logger.warning(f"{self.dev_fn} is missing")
+            logger.warning("%s is missing", self.dev_fn)
             return False
 
-        logger.info(f'Opening %s... {self.dev_fn}')
+        logger.info("Opening %s...", self.dev_fn)
         self.jsdev = open(self.dev_fn, 'rb')
 
         buf = array.array('B', [0] * 64)
         ioctl(self.jsdev, 0x80006a13 + (0x10000 * len(buf)), buf)
         self.js_name = buf.tobytes().decode('utf-8')
-        logger.info('Device name: %s' % self.js_name)
+        logger.info("Device name: %s", self.js_name)
 
         buf = array.array('B', [0])
         ioctl(self.jsdev, 0x80016a11, buf)  # JSIOCGAXES
@@ -134,7 +134,7 @@ class Joystick:
         evbuf = self.jsdev.read(8)
 
         if evbuf:
-            tval, value, typev, number = struct.unpack('IhBB', evbuf)
+            _tval, value, typev, number = struct.unpack('IhBB', evbuf)
 
             if typev & 0x80:
                 return button, button_state, axis, axis_val
@@ -144,7 +144,7 @@ class Joystick:
                 if button:
                     self.button_states[button] = value
                     button_state = value
-                    logger.info("button: %s state: %d" % (button, value))
+                    logger.info("button: %s state: %d", button, value)
 
             if typev & 0x02:
                 axis = self.axis_map[number]
@@ -152,7 +152,7 @@ class Joystick:
                     fvalue = value / 32767.0
                     self.axis_states[axis] = fvalue
                     axis_val = fvalue
-                    logger.debug("axis: %s val: %f" % (axis, fvalue))
+                    logger.debug("axis: %s val: %f", axis, fvalue)
 
         return button, button_state, axis, axis_val
 
@@ -168,8 +168,36 @@ class PyGameJoystick:
         auto_record_on_throttle=True,
         which_js=0,
     ) -> None:
+        """
+        Initialize PyGameJoystick.
+
+        Parameters
+        ----------
+        poll_delay : float
+            Polling delay (kept for API compatibility, not currently used)
+        throttle_scale : float
+            Throttle scale (kept for API compatibility, not currently used)
+        steering_scale : float
+            Steering scale (kept for API compatibility, not currently used)
+        throttle_dir : float
+            Throttle direction (kept for API compatibility, not currently used)
+        dev_fn : str
+            Device file path (kept for API compatibility, not currently used)
+        auto_record_on_throttle : bool
+            Auto record flag (kept for API compatibility, not currently used)
+        which_js : int
+            Which joystick index to use
+        """
+        # Suppress unused variable warnings - these parameters are kept for API compatibility
+        _poll_delay = poll_delay
+        _throttle_scale = throttle_scale
+        _steering_scale = steering_scale
+        _throttle_dir = throttle_dir
+        _dev_fn = dev_fn
+        _auto_record_on_throttle = auto_record_on_throttle
+
         try:
-            import pygame
+            import pygame  # type: ignore
 
             pygame.init()
             pygame.joystick.init()
@@ -177,12 +205,12 @@ class PyGameJoystick:
             self.joystick = pygame.joystick.Joystick(which_js)
             self.joystick.init()
             name = self.joystick.get_name()
-            logger.info(f"detected joystick device: {name}")
+            logger.info("detected joystick device: %s", name)
         except ModuleNotFoundError:
             logger.warning('pygame not available; PyGameJoystick disabled')
             self.joystick = None
-        except Exception:  # pylint: disable=broad-except
-            logger.exception('pygame joystick initialization failed')
+        except (ImportError, RuntimeError, AttributeError) as e:
+            logger.exception('pygame joystick initialization failed: %s', e)
             self.joystick = None
 
         if self.joystick is not None:
@@ -203,9 +231,60 @@ class PyGameJoystick:
         for i in range(self.joystick.get_numbuttons() + self.joystick.get_numhats() * 4 if self.joystick else 0):
             self.button_names[i] = i
 
+    def _poll_axes(self):
+        """Poll joystick axes and return axis info if changed."""
+        axis = None
+        axis_val = None
+        for i in range(self.joystick.get_numaxes()):
+            val = self.joystick.get_axis(i)
+            if abs(val) < self.dead_zone:
+                val = 0.0
+            if self.axis_states[i] != val and i in self.axis_names:
+                axis = self.axis_names[i]
+                axis_val = val
+                self.axis_states[i] = val
+                logger.debug("axis: %s val: %f", axis, val)
+        return axis, axis_val
+
+    def _poll_buttons(self):
+        """Poll joystick buttons and return button info if changed."""
+        button = None
+        button_state = None
+        for i in range(self.joystick.get_numbuttons()):
+            state = self.joystick.get_button(i)
+            if self.button_states[i] != state:
+                if i not in self.button_names:
+                    logger.info("button: %d", i)
+                    continue
+                button = self.button_names[i]
+                button_state = state
+                self.button_states[i] = state
+                logger.info("button: %s state: %d", button, state)
+        return button, button_state
+
+    def _poll_hats(self):
+        """Poll joystick hats and return button info if changed."""
+        button = None
+        button_state = None
+        for i in range(self.joystick.get_numhats()):
+            hat = self.joystick.get_hat(i)
+            horz, vert = hat
+            i_btn = self.joystick.get_numbuttons() + (i * 4)
+            states = (horz == -1, horz == 1, vert == -1, vert == 1)
+            for state in states:
+                state = int(state)
+                if self.button_states[i_btn] != state:
+                    if i_btn not in self.button_names:
+                        logger.info("button: %d", i_btn)
+                        continue
+                    button = self.button_names[i_btn]
+                    button_state = state
+                    self.button_states[i_btn] = state
+        return button, button_state
+
     def poll(self):
         try:
-            import pygame
+            import pygame  # type: ignore
         except ModuleNotFoundError:
             pygame = None
 
@@ -219,40 +298,12 @@ class PyGameJoystick:
 
         pygame.event.get()
 
-        for i in range(self.joystick.get_numaxes()):
-            val = self.joystick.get_axis(i)
-            if abs(val) < self.dead_zone:
-                val = 0.0
-            if self.axis_states[i] != val and i in self.axis_names:
-                axis = self.axis_names[i]
-                axis_val = val
-                self.axis_states[i] = val
-                logging.debug("axis: %s val: %f" % (axis, val))
-
-        for i in range(self.joystick.get_numbuttons()):
-            state = self.joystick.get_button(i)
-            if self.button_states[i] != state:
-
-    def __init__(self, cfg, debug=False):
-        self.pi = pigpio.pi()
-                button_state = state
-                self.button_states[i] = state
-                logging.info("button: %s state: %d" % (button, state))
-
-        for i in range(self.joystick.get_numhats()):
-            hat = self.joystick.get_hat(i)
-            horz, vert = hat
-            iBtn = self.joystick.get_numbuttons() + (i * 4)
-            states = (horz == -1, horz == 1, vert == -1, vert == 1)
-            for state in states:
-                state = int(state)
-                if self.button_states[iBtn] != state:
-                    if iBtn not in self.button_names:
-                        logger.info(f"button: {iBtn}")
-                        continue
-                    button = self.button_names[iBtn]
-                    button_state = state
-                    self.button_states[iBtn] = state
+        axis, axis_val = self._poll_axes()
+        button, button_state = self._poll_buttons()
+        hat_button, hat_button_state = self._poll_hats()
+        if hat_button is not None:
+            button = hat_button
+            button_state = hat_button_state
 
         return button, button_state, axis, axis_val
 
@@ -267,6 +318,38 @@ class Channel:
 
 class RCReceiver:
     MIN_OUT = -1
+    MAX_OUT = 1
+
+    def __init__(self, cfg, debug=False):
+        self.pi = pigpio.pi()
+        self.channels = [
+            Channel(cfg.STEERING_RC_GPIO),
+            Channel(cfg.THROTTLE_RC_GPIO),
+            Channel(cfg.DATA_WIPER_RC_GPIO),
+        ]
+        self.min_pwm = 1000
+        self.max_pwm = 2000
+        self.oldtime = 0
+        self.STEERING_MID = cfg.PIGPIO_STEERING_MID
+        self.MAX_FORWARD = cfg.PIGPIO_MAX_FORWARD
+        self.STOPPED_PWM = cfg.PIGPIO_STOPPED_PWM
+        self.MAX_REVERSE = cfg.PIGPIO_MAX_REVERSE
+        self.RECORD = cfg.AUTO_RECORD_ON_THROTTLE
+        self.debug = debug
+        self.mode = 'user'
+        self.is_action = False
+        self.invert = cfg.PIGPIO_INVERT
+        self.jitter = cfg.PIGPIO_JITTER
+        self.factor = (self.MAX_OUT - self.MIN_OUT) / \
+            (self.max_pwm - self.min_pwm)
+        self.cbs = []
+        self.signals = [0, 0, 0]
+        for channel in self.channels:
+            self.pi.set_mode(channel.pin, pigpio.INPUT)
+            self.cbs.append(self.pi.callback(
+                channel.pin, pigpio.EITHER_EDGE, self.cbf))
+            if self.debug:
+                logger.info("RCReceiver gpio %d created", channel.pin)
 
     def cbf(self, gpio, level, tick):
         for channel in self.channels:
@@ -275,43 +358,8 @@ class RCReceiver:
                     channel.high_tick = tick
                 elif level == 0:
                     if channel.high_tick is not None:
-                        channel.tick = pigpio.tickDiff(channel.high_tick, tick)
-            Channel(cfg.THROTTLE_RC_GPIO),
-            Channel(cfg.DATA_WIPER_RC_GPIO),
-        ]
-        self.min_pwm= 1000
-        self.max_pwm= 2000
-        self.oldtime= 0
-        self.STEERING_MID= cfg.PIGPIO_STEERING_MID
-        self.MAX_FORWARD= cfg.PIGPIO_MAX_FORWARD
-        self.STOPPED_PWM= cfg.PIGPIO_STOPPED_PWM
-        self.MAX_REVERSE= cfg.PIGPIO_MAX_REVERSE
-        self.RECORD= cfg.AUTO_RECORD_ON_THROTTLE
-        self.debug= debug
-        self.mode= 'user'
-        self.is_action= False
-        self.invert= cfg.PIGPIO_INVERT
-        self.jitter= cfg.PIGPIO_JITTER
-        self.factor = (self.MAX_OUT - self.MIN_OUT) /
-            (self.max_pwm - self.min_pwm)
-        self.cbs= []
-        self.signals= [0, 0, 0]
-        for channel in self.channels:
-            self.pi.set_mode(channel.pin, pigpio.INPUT)
-            self.cbs.append(self.pi.callback(
-                channel.pin, pigpio.EITHER_EDGE, self.cbf))
-            if self.debug:
-                logger.info(f'RCReceiver gpio {channel.pin} created')
-
-    def cbf(self, gpio, level, tick):
-        import pigpio
-        for channel in self.channels:
-            if gpio == channel.pin:
-                if level == 1:
-                    channel.high_tick= tick
-                elif level == 0:
-                    if channel.high_tick is not None:
-                        channel.tick= pigpio.tickDiff(channel.high_tick, tick)
+                        channel.tick = pigpio.tick_diff(
+                            channel.high_tick, tick)
 
     def pulse_width(self, high):
         if high is not None:
@@ -319,18 +367,21 @@ class RCReceiver:
         return 0.0
 
     def run(self, mode=None, recording=None):
-        i= 0
+        i = 0
         for channel in self.channels:
-            self.signals[i]= (self.pulse_width(
+            self.signals[i] = (self.pulse_width(
                 channel.tick) - self.min_pwm) * self.factor
             if self.invert:
-                self.signals[i]= -self.signals[i] + self.MAX_OUT
+                self.signals[i] = -self.signals[i] + self.MAX_OUT
             else:
                 self.signals[i] += self.MIN_OUT
             i += 1
         if self.debug:
             logger.info(
-                f'RC CH1 signal:{round(self.signals[0], 3)}, RC CH2 signal:{round(self.signals[1], 3)}, RC CH3 signal:{round(self.signals[2], 3)}'
+                "RC CH1 signal:%s, RC CH2 signal:%s, RC CH3 signal:%s",
+                round(self.signals[0], 3),
+                round(self.signals[1], 3),
+                round(self.signals[2], 3)
             )
 
         if (self.signals[2] - self.jitter) > 0:
@@ -348,5 +399,5 @@ class RCReceiver:
         for cb in self.cbs:
             try:
                 cb.cancel()
-            except Exception:
-                logger.exception("Failed to cancel pigpio callback")
+            except (AttributeError, RuntimeError) as e:
+                logger.exception("Failed to cancel pigpio callback: %s", e)
