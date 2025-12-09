@@ -12,6 +12,18 @@ import array
 import struct
 import logging
 
+# Try to import ioctl for joystick support
+try:
+    from fcntl import ioctl
+except ModuleNotFoundError:
+    ioctl = None  # type: ignore
+
+# Try to import pygame for pygame joystick support
+try:
+    import pygame  # type: ignore
+except ModuleNotFoundError:
+    pygame = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +58,7 @@ except ImportError:
             if high is None or tick is None:
                 return 0
             try:
-                return high - tick
+                return tick - high
             except (TypeError, ValueError):
                 return 0
 
@@ -72,9 +84,7 @@ class Joystick:
         self.js_name = ''
 
     def init(self) -> bool:
-        try:
-            from fcntl import ioctl
-        except ModuleNotFoundError:
+        if ioctl is None:
             logger.warning(
                 "no support for fnctl module. joystick not enabled.")
             return False
@@ -196,22 +206,22 @@ class PyGameJoystick:
         _dev_fn = dev_fn
         _auto_record_on_throttle = auto_record_on_throttle
 
-        try:
-            import pygame  # type: ignore
-
-            pygame.init()
-            pygame.joystick.init()
-
-            self.joystick = pygame.joystick.Joystick(which_js)
-            self.joystick.init()
-            name = self.joystick.get_name()
-            logger.info("detected joystick device: %s", name)
-        except ModuleNotFoundError:
+        if pygame is None:
             logger.warning('pygame not available; PyGameJoystick disabled')
             self.joystick = None
-        except (ImportError, RuntimeError, AttributeError) as e:
-            logger.exception('pygame joystick initialization failed: %s', e)
-            self.joystick = None
+        else:
+            try:
+                pygame.init()
+                pygame.joystick.init()
+
+                self.joystick = pygame.joystick.Joystick(which_js)
+                self.joystick.init()
+                name = self.joystick.get_name()
+                logger.info("detected joystick device: %s", name)
+            except (ModuleNotFoundError, ImportError, RuntimeError, AttributeError) as e:
+                logger.exception(
+                    'pygame joystick initialization failed: %s', e)
+                self.joystick = None
 
         if self.joystick is not None:
             self.axis_states = [0.0 for _ in range(
@@ -283,11 +293,6 @@ class PyGameJoystick:
         return button, button_state
 
     def poll(self):
-        try:
-            import pygame  # type: ignore
-        except ModuleNotFoundError:
-            pygame = None
-
         button = None
         button_state = None
         axis = None
@@ -306,6 +311,17 @@ class PyGameJoystick:
             button_state = hat_button_state
 
         return button, button_state, axis, axis_val
+
+    def show_map(self) -> None:
+        """Display axis and button mapping."""
+        if self.joystick is None:
+            return
+        axis_names = ', '.join(str(self.axis_names.get(i, f'axis_{i}'))
+                               for i in range(len(self.axis_states)))
+        button_names = ', '.join(str(self.button_names.get(i, f'btn_{i}'))
+                                 for i in range(len(self.button_states)))
+        print(f'{len(self.axis_states)} axes found: {axis_names}')
+        print(f'{len(self.button_states)} buttons found: {button_names}')
 
 
 # Simple device helpers

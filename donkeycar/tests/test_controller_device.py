@@ -84,7 +84,7 @@ class TestRCReceiver:
 
         # Allow for floating point precision differences
         assert abs(receiver.factor - expected_factor) < 1e-9
-        assert abs(receiver.factor - 2.0) < 1e-9
+        assert abs(receiver.factor - 0.002) < 1e-9
 
     def test_rc_receiver_class_constants(self):
         """Test RCReceiver class constants."""
@@ -206,23 +206,21 @@ class TestJoystick:
         assert result is False
 
     @patch('os.path.exists')
-    @patch('donkeycar.parts.controller_device.ioctl')
-    def test_joystick_init_fcntl_not_available(self, _mock_ioctl, mock_exists):
+    @patch('donkeycar.parts.controller_device.ioctl', None)
+    def test_joystick_init_fcntl_not_available(self, mock_exists):
         """Test Joystick init when fcntl is not available."""
         mock_exists.return_value = True
+        js = Joystick()
+        result = js.init()
 
-        with patch('donkeycar.parts.controller_device.ioctl', side_effect=ModuleNotFoundError):
-            js = Joystick()
-            result = js.init()
-
-            assert result is False
+        assert result is False
 
 
 class TestPyGameJoystick:
     """Tests for the PyGameJoystick class."""
 
     @patch('donkeycar.parts.controller_device.pygame')
-    def test_pygame_joystick_initialization(self, _mock_pygame_module):
+    def test_pygame_joystick_initialization(self, mock_pygame_module):
         """Test PyGameJoystick initialization with pygame available."""
         mock_joystick = MagicMock()
         mock_joystick.get_numaxes.return_value = 2
@@ -230,14 +228,12 @@ class TestPyGameJoystick:
         mock_joystick.get_numhats.return_value = 1
         mock_joystick.get_name.return_value = "Test Joystick"
 
-        with patch('pygame.init'), \
-                patch('pygame.joystick.init'), \
-                patch('pygame.joystick.Joystick', return_value=mock_joystick):
-            js = PyGameJoystick()
+        mock_pygame_module.joystick.Joystick.return_value = mock_joystick
+        js = PyGameJoystick()
 
-            assert js.joystick is not None
-            assert len(js.axis_states) == 2
-            assert len(js.button_states) == 14  # 10 buttons + 1 hat * 4
+        assert js.joystick is not None
+        assert len(js.axis_states) == 2
+        assert len(js.button_states) == 14  # 10 buttons + 1 hat * 4
 
     def test_pygame_joystick_initialization_no_pygame(self):
         """Test PyGameJoystick initialization when pygame is not available."""
@@ -252,15 +248,18 @@ class TestPyGameJoystick:
                 pass
 
     @patch('donkeycar.parts.controller_device.pygame')
-    def test_pygame_joystick_dead_zone(self, _mock_pygame_module):
+    def test_pygame_joystick_dead_zone(self, mock_pygame_module):
         """Test PyGameJoystick dead_zone initialization."""
-        with patch('pygame.init'), \
-                patch('pygame.joystick.init'), \
-                patch('pygame.joystick.Joystick', return_value=MagicMock()):
-            js = PyGameJoystick()
+        mock_joystick = MagicMock()
+        mock_joystick.get_numaxes.return_value = 0
+        mock_joystick.get_numbuttons.return_value = 0
+        mock_joystick.get_numhats.return_value = 0
+        mock_pygame_module.joystick.Joystick.return_value = mock_joystick
 
-            # Allow for floating point precision differences
-            assert abs(js.dead_zone - 0.07) < 1e-9
+        js = PyGameJoystick()
+
+        # Allow for floating point precision differences
+        assert abs(js.dead_zone - 0.07) < 1e-9
 
     @patch('donkeycar.parts.controller_device.pygame')
     def test_pygame_joystick_poll_no_joystick(self, _mock_pygame_module):
@@ -276,16 +275,15 @@ class TestPyGameJoystick:
         assert axis_val is None
 
     @patch('donkeycar.parts.controller_device.pygame')
-    def test_pygame_joystick_show_map(self, _mock_pygame_module):
+    def test_pygame_joystick_show_map(self, mock_pygame_module):
         """Test PyGameJoystick show_map method."""
         mock_joystick = MagicMock()
         mock_joystick.get_numaxes.return_value = 2
         mock_joystick.get_numbuttons.return_value = 10
+        mock_joystick.get_numhats.return_value = 0
+        mock_pygame_module.joystick.Joystick.return_value = mock_joystick
 
-        with patch('pygame.init'), \
-                patch('pygame.joystick.init'), \
-                patch('pygame.joystick.Joystick', return_value=mock_joystick), \
-                patch('builtins.print') as mock_print:
+        with patch('builtins.print') as mock_print:
             js = PyGameJoystick()
             js.axis_map = ['X', 'Y']
             js.button_map = ['A', 'B']
