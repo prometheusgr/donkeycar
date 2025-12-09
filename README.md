@@ -20,8 +20,20 @@ Donkeycar is minimalist and modular self driving library for Python. It is devel
 - [Donkeycar Updates & Examples](http://donkeycar.com)
 - [Build instructions and Software documentation](http://docs.donkeycar.com)
 - [Discord / Chat](https://discord.gg/PN6kFeA)
-
 - [Local development instructions](README.dev.md)
+
+#### New: Organized CLI
+
+Donkeycar now includes a unified CLI for managing your projects:
+
+```bash
+donkey car create --path mycar           # Create a car project
+donkey car configure --car-path mycar    # Configure hardware
+donkey data record --car-path mycar      # Record training data
+donkey training train --car-path mycar --data-dir mycar/data/dataset
+```
+
+Learn more: [CLI Documentation](donkeycar/cli/README.md) | [Examples](EXAMPLES.md) | [Migration Guide](MIGRATION.md)
 
 ![donkeycar](https://github.com/autorope/donkeydocs/blob/master/docs/assets/build_hardware/donkey2.png)
 
